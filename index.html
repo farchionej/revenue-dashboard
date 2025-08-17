@@ -292,6 +292,48 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -377,7 +419,7 @@
             
             <div id="clients" class="tab-content">
                 <div class="controls">
-                    <button onclick="showAddClientForm()">+ Add Client</button>
+                    <button onclick="showAddClientModal()">+ Add Client</button>
                     <button onclick="loadClients()">↻ Refresh</button>
                 </div>
                 
@@ -404,21 +446,24 @@
             <div id="analytics" class="tab-content">
                 <div class="controls">
                     <button onclick="loadAnalytics()">↻ Refresh Analytics</button>
+                    <button onclick="exportAnalytics()">Export to CSV</button>
                 </div>
                 <div class="table-container">
                     <table id="analyticsTable">
                         <thead>
                             <tr>
                                 <th>Month</th>
-                                <th>Total Expected</th>
-                                <th>Total Paid</th>
-                                <th>Outstanding</th>
-                                <th>Collection Rate</th>
+                                <th>Revenue</th>
+                                <th>Op Income</th>
+                                <th>Costs</th>
+                                <th>Margin %</th>
+                                <th>Goal</th>
+                                <th>Delta</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td colspan="5" class="loading">Loading analytics...</td>
+                                <td colspan="7" class="loading">Loading analytics...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -427,12 +472,42 @@
         </div>
     </div>
     
+    <!-- Add Client Modal -->
+    <div id="clientModal" class="modal">
+        <div class="modal-content">
+            <h2>Add New Client</h2>
+            <form id="clientForm" onsubmit="submitClient(event)">
+                <div class="form-group">
+                    <label>Client Name:</label>
+                    <input type="text" id="clientName" required>
+                </div>
+                <div class="form-group">
+                    <label>Monthly Amount:</label>
+                    <input type="number" id="clientAmount" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Status:</label>
+                    <select id="clientStatus">
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Start Date:</label>
+                    <input type="date" id="clientStartDate" required>
+                </div>
+                <button type="submit">Add Client</button>
+                <button type="button" onclick="closeClientModal()">Cancel</button>
+            </form>
+        </div>
+    </div>
+    
     <script>
         let supabase = null;
         let clients = [];
         let payments = {};
         
-        // Initialize - Check for saved credentials
+        // Initialize
         window.onload = function() {
             const savedUrl = localStorage.getItem('supabaseUrl');
             const savedKey = localStorage.getItem('supabaseKey');
@@ -456,29 +531,20 @@
             }
             
             try {
-                // Initialize Supabase client
                 supabase = window.supabase.createClient(url, key);
                 
-                // Test connection
                 const { data, error } = await supabase.from('clients').select('count');
                 
                 if (error) throw error;
                 
-                // Save credentials
                 localStorage.setItem('supabaseUrl', url);
                 localStorage.setItem('supabaseKey', key);
                 
-                // Hide setup, show dashboard
                 document.getElementById('setupNotice').style.display = 'none';
                 document.getElementById('dashboardContent').style.display = 'block';
                 
-                // Update status
                 updateSyncStatus('connected');
                 
-                // Check if we need to initialize data
-                await initializeDataIfNeeded();
-                
-                // Load initial data
                 await loadClients();
                 await loadPayments();
                 updateMetrics();
@@ -486,48 +552,6 @@
             } catch (error) {
                 alert('Connection failed: ' + error.message);
                 updateSyncStatus('error');
-            }
-        }
-        
-        async function initializeDataIfNeeded() {
-            // Check if we have any clients
-            const { data: existingClients, error } = await supabase
-                .from('clients')
-                .select('*')
-                .limit(1);
-            
-            if (!error && (!existingClients || existingClients.length === 0)) {
-                // Initialize with sample data
-                const sampleClients = [
-                    { name: 'Twelve Oak', amount: 250, status: 'active', start_date: '2023-12-01' },
-                    { name: 'Limoncello', amount: 200, status: 'active', start_date: '2023-12-01' },
-                    { name: 'Regal', amount: 1200, status: 'active', start_date: '2023-12-01' },
-                    { name: 'Evergreen', amount: 650, status: 'active', start_date: '2024-01-01' },
-                    { name: 'New Spot', amount: 250, status: 'active', start_date: '2024-02-01' },
-                    { name: 'FSDC', amount: 700, status: 'active', start_date: '2024-03-01' },
-                    { name: 'Cote Ouest', amount: 300, status: 'active', start_date: '2024-02-01' },
-                    { name: 'Nisei (Dine Credit)', amount: 500, status: 'active', start_date: '2024-04-01' },
-                    { name: "Sandy's", amount: 200, status: 'paused', start_date: '2024-05-01' },
-                    { name: 'Galene', amount: 350, status: 'paused', start_date: '2024-04-01' },
-                    { name: 'The Fly Trap', amount: 300, status: 'paused', start_date: '2024-05-01' },
-                    { name: "Hot Johnnie's", amount: 400, status: 'active', start_date: '2024-04-01' },
-                    { name: 'Amarena', amount: 300, status: 'active', start_date: '2024-05-01' },
-                    { name: 'Californios (Dine Credit)', amount: 400, status: 'active', start_date: '2024-06-01' },
-                    { name: 'Eat Street', amount: 250, status: 'paused', start_date: '2024-06-01' },
-                    { name: 'Dacha', amount: 500, status: 'active', start_date: '2024-06-01' },
-                    { name: "John's Grill", amount: 2000, status: 'active', start_date: '2024-07-01' },
-                    { name: 'Mr. Magic', amount: 410, status: 'active', start_date: '2024-07-01' },
-                    { name: '3rd Cousin', amount: 500, status: 'active', start_date: '2024-07-01' },
-                    { name: 'Harborview', amount: 850, status: 'active', start_date: '2024-08-01' },
-                    { name: 'San Benito House', amount: 2000, status: 'active', start_date: '2024-08-01' },
-                    { name: 'EzyDog', amount: 2000, status: 'active', start_date: '2024-09-01' },
-                    { name: 'Kei', amount: 400, status: 'active', start_date: '2024-10-01' },
-                    { name: 'District', amount: 850, status: 'active', start_date: '2024-11-01' },
-                    { name: 'Indigo', amount: 350, status: 'active', start_date: '2024-11-01' }
-                ];
-                
-                await supabase.from('clients').insert(sampleClients);
-                console.log('Initialized with sample client data');
             }
         }
         
@@ -585,12 +609,11 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${client.name}</td>
-                    <td>$${client.amount.toLocaleString()}</td>
+                    <td>$${parseFloat(client.amount).toLocaleString()}</td>
                     <td><span class="status-${client.status}">${client.status}</span></td>
                     <td>${client.start_date}</td>
                     <td>
                         <button onclick="editClient(${client.id})">Edit</button>
-                        <button onclick="deleteClient(${client.id})" style="background: #dc3545;">Delete</button>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -619,7 +642,7 @@
                     
                     row.innerHTML = `
                         <td><strong>${client.name}</strong></td>
-                        <td>$${client.amount.toLocaleString()}</td>
+                        <td>$${parseFloat(client.amount).toLocaleString()}</td>
                         <td>
                             <span class="status-${status}" 
                                   onclick="togglePaymentStatus(${client.id}, '${status}')"
@@ -648,7 +671,6 @@
             
             updateSyncStatus('syncing');
             try {
-                // Check if payment record exists
                 const { data: existing } = await supabase
                     .from('monthly_payments')
                     .select('*')
@@ -657,13 +679,11 @@
                     .single();
                 
                 if (existing) {
-                    // Update existing
                     await supabase
                         .from('monthly_payments')
                         .update({ status: newStatus, payment_date: paymentDate })
                         .eq('id', existing.id);
                 } else {
-                    // Create new
                     await supabase
                         .from('monthly_payments')
                         .insert({
@@ -726,6 +746,59 @@
             }
         }
         
+        async function loadAnalytics() {
+            updateSyncStatus('syncing');
+            try {
+                const { data: monthlyData, error } = await supabase
+                    .from('monthly_data')
+                    .select('*')
+                    .order('month', { ascending: false });
+                
+                if (error) throw error;
+                
+                const tbody = document.querySelector('#analyticsTable tbody');
+                tbody.innerHTML = '';
+                
+                if (!monthlyData || monthlyData.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7">No analytics data available</td></tr>';
+                    updateSyncStatus('connected');
+                    return;
+                }
+                
+                monthlyData.forEach(record => {
+                    const row = document.createElement('tr');
+                    const revenue = parseFloat(record.revenue) || 0;
+                    const goal = parseFloat(record.goal) || 0;
+                    const delta = revenue - goal;
+                    const deltaColor = delta >= 0 ? 'green' : 'red';
+                    const deltaText = delta >= 0 ? `+$${delta.toLocaleString()}` : `-$${Math.abs(delta).toLocaleString()}`;
+                    
+                    const [year, month] = record.month.split('-');
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const monthDisplay = `${monthNames[parseInt(month) - 1]} ${year}`;
+                    
+                    row.innerHTML = `
+                        <td><strong>${monthDisplay}</strong></td>
+                        <td>$${revenue.toLocaleString()}</td>
+                        <td>$${(parseFloat(record.op_income) || 0).toLocaleString()}</td>
+                        <td>$${(parseFloat(record.costs) || 0).toLocaleString()}</td>
+                        <td>${record.margin ? parseFloat(record.margin).toFixed(1) + '%' : '-'}</td>
+                        <td>$${goal.toLocaleString()}</td>
+                        <td style="color: ${deltaColor}; font-weight: bold;">${deltaText}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                updateSyncStatus('connected');
+                
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+                const tbody = document.querySelector('#analyticsTable tbody');
+                tbody.innerHTML = `<tr><td colspan="7" style="color: red;">Error: ${error.message}</td></tr>`;
+                updateSyncStatus('error');
+            }
+        }
+        
         function updateMetrics() {
             const month = document.getElementById('monthSelector').value;
             let totalExpected = 0;
@@ -771,168 +844,9 @@
             
             if (tabName === 'analytics') {
                 loadAnalytics();
+            } else if (tabName === 'clients') {
+                loadClients();
             }
-        }
-        
-       <!-- REPLACE THE loadAnalytics FUNCTION IN YOUR index.html FILE WITH THIS CODE -->
-<!-- Find the loadAnalytics function (around line 450-460) and replace it entirely -->
-
-<script>
-async function loadAnalytics() {
-    updateSyncStatus('syncing');
-    try {
-        // Fetch monthly data from Supabase
-        const { data: monthlyData, error: monthlyError } = await supabase
-            .from('monthly_data')
-            .select('*')
-            .order('month', { ascending: false });
-        
-        if (monthlyError) throw monthlyError;
-        
-        // Fetch payment data for collection rates
-        const { data: payments, error: paymentsError } = await supabase
-            .from('monthly_payments')
-            .select('*');
-        
-        if (paymentsError) throw paymentsError;
-        
-        // Display analytics table
-        const tbody = document.querySelector('#analyticsTable tbody');
-        tbody.innerHTML = '';
-        
-        if (!monthlyData || monthlyData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5">No analytics data available</td></tr>';
-            updateSyncStatus('connected');
-            return;
-        }
-        
-        // Calculate collection rates for each month
-        const collectionRates = {};
-        for (const record of monthlyData) {
-            const monthPayments = payments.filter(p => p.month === record.month);
-            const paidCount = monthPayments.filter(p => p.status === 'paid').length;
-            const totalCount = monthPayments.length;
-            collectionRates[record.month] = totalCount > 0 ? 
-                Math.round((paidCount / totalCount) * 100) : 0;
-        }
-        
-        // Display data
-        monthlyData.forEach(record => {
-            const row = document.createElement('tr');
-            
-            // Calculate actual vs goal
-            const revenue = record.revenue || 0;
-            const goal = record.goal || 0;
-            const delta = revenue - goal;
-            const deltaColor = delta >= 0 ? 'green' : 'red';
-            const deltaText = delta >= 0 ? `+$${delta.toLocaleString()}` : `-$${Math.abs(delta).toLocaleString()}`;
-            
-            // Get collection rate
-            const collectionRate = collectionRates[record.month] || 0;
-            
-            // Format month display
-            const [year, month] = record.month.split('-');
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const monthDisplay = `${monthNames[parseInt(month) - 1]} ${year}`;
-            
-            row.innerHTML = `
-                <td><strong>${monthDisplay}</strong></td>
-                <td>$${revenue.toLocaleString()}</td>
-                <td>$${(record.op_income || 0).toLocaleString()}</td>
-                <td>$${(record.costs || 0).toLocaleString()}</td>
-                <td>${record.margin ? record.margin.toFixed(1) + '%' : '-'}</td>
-                <td>$${goal.toLocaleString()}</td>
-                <td style="color: ${deltaColor}; font-weight: bold;">${deltaText}</td>
-                <td>${collectionRate}%</td>
-            `;
-            tbody.appendChild(row);
-        });
-        
-        // Calculate and display summary metrics
-        const totalRevenue = monthlyData.reduce((sum, r) => sum + (r.revenue || 0), 0);
-        const avgMargin = monthlyData.filter(r => r.margin).reduce((sum, r) => sum + r.margin, 0) / 
-                         monthlyData.filter(r => r.margin).length;
-        const ytdData = monthlyData.filter(r => r.month.startsWith('2025'));
-        const ytdRevenue = ytdData.reduce((sum, r) => sum + (r.revenue || 0), 0);
-        
-        // Add summary row
-        const summaryRow = document.createElement('tr');
-        summaryRow.style.backgroundColor = '#f0f0f0';
-        summaryRow.style.fontWeight = 'bold';
-        summaryRow.innerHTML = `
-            <td>YTD 2025</td>
-            <td>$${ytdRevenue.toLocaleString()}</td>
-            <td colspan="2">Total: $${totalRevenue.toLocaleString()}</td>
-            <td>${avgMargin.toFixed(1)}% avg</td>
-            <td colspan="3">Performance Summary</td>
-        `;
-        tbody.appendChild(summaryRow);
-        
-        updateSyncStatus('connected');
-        
-    } catch (error) {
-        console.error('Error loading analytics:', error);
-        const tbody = document.querySelector('#analyticsTable tbody');
-        tbody.innerHTML = `<tr><td colspan="5" style="color: red;">Error loading analytics: ${error.message}</td></tr>`;
-        updateSyncStatus('error');
-    }
-}
-</script>
-
-<!-- ALSO UPDATE THE ANALYTICS TABLE HTML -->
-<!-- Find the analytics table section and replace with this -->
-
-<div id="analytics" class="tab-content">
-    <div class="controls">
-        <button onclick="loadAnalytics()">↻ Refresh Analytics</button>
-        <button onclick="exportAnalytics()">Export to CSV</button>
-    </div>
-    <div class="table-container">
-        <table id="analyticsTable">
-            <thead>
-                <tr>
-                    <th>Month</th>
-                    <th>Revenue</th>
-                    <th>Operating Income</th>
-                    <th>Costs</th>
-                    <th>Margin %</th>
-                    <th>Goal</th>
-                    <th>Delta</th>
-                    <th>Collection Rate</th>
-                </tr>
-            </thead>
-           <tbody></tbody>
-        </table>
-    </div>
-</div>
-
-<!-- ADD THIS EXPORT FUNCTION TOO -->
-<script>
-function exportAnalytics() {
-    // Get table data
-    const table = document.getElementById('analyticsTable');
-    const rows = table.querySelectorAll('tr');
-    
-    let csv = [];
-    for (let row of rows) {
-        const cols = row.querySelectorAll('td, th');
-        const csvRow = [];
-        for (let col of cols) {
-            csvRow.push('"' + col.innerText.replace(/"/g, '""') + '"');
-        }
-        csv.push(csvRow.join(','));
-    }
-    
-    // Download CSV
-    const csvContent = csv.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `analytics_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-}
-</script>
         }
         
         async function refreshData() {
@@ -963,7 +877,7 @@ function exportAnalytics() {
             let message = 'Unpaid Clients for ' + month + ':\n\n';
             let total = 0;
             unpaidClients.forEach(client => {
-                message += `• ${client.name}: $${client.amount}\n`;
+                message += `• ${client.name}: $${parseFloat(client.amount).toLocaleString()}\n`;
                 total += parseFloat(client.amount);
             });
             message += `\nTotal Outstanding: $${total.toLocaleString()}`;
@@ -971,33 +885,47 @@ function exportAnalytics() {
             alert(message);
         }
         
-        function showAddClientForm() {
-            const name = prompt('Client Name:');
-            if (!name) return;
-            
-            const amount = prompt('Monthly Amount:');
-            if (!amount) return;
-            
-            const startDate = prompt('Start Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
-            if (!startDate) return;
-            
-            addClient(name, parseFloat(amount), startDate);
+        function showAddClientModal() {
+            document.getElementById('clientModal').classList.add('active');
+            document.getElementById('clientStartDate').value = new Date().toISOString().split('T')[0];
         }
         
-        async function addClient(name, amount, startDate) {
+        function closeClientModal() {
+            document.getElementById('clientModal').classList.remove('active');
+            document.getElementById('clientForm').reset();
+        }
+        
+        async function submitClient(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('clientName').value;
+            const amount = parseFloat(document.getElementById('clientAmount').value);
+            const status = document.getElementById('clientStatus').value;
+            const startDate = document.getElementById('clientStartDate').value;
+            
             updateSyncStatus('syncing');
             try {
-                await supabase.from('clients').insert({
-                    name: name,
-                    amount: amount,
-                    status: 'active',
-                    start_date: startDate
-                });
+                const { data, error } = await supabase
+                    .from('clients')
+                    .insert({
+                        name: name,
+                        amount: amount,
+                        status: status,
+                        start_date: startDate
+                    })
+                    .select();
                 
+                if (error) throw error;
+                
+                closeClientModal();
                 await loadClients();
                 await loadPayments();
+                
+                alert(`Client "${name}" added successfully!`);
+                
             } catch (error) {
                 console.error('Error adding client:', error);
+                alert('Error adding client: ' + error.message);
                 updateSyncStatus('error');
             }
         }
@@ -1039,6 +967,33 @@ function exportAnalytics() {
                 console.error('Error updating notes:', error);
                 updateSyncStatus('error');
             }
+        }
+        
+        function editClient(clientId) {
+            alert('Edit client functionality coming soon. For now, edit in Supabase Table Editor.');
+        }
+        
+        function exportAnalytics() {
+            const table = document.getElementById('analyticsTable');
+            const rows = table.querySelectorAll('tr');
+            
+            let csv = [];
+            for (let row of rows) {
+                const cols = row.querySelectorAll('td, th');
+                const csvRow = [];
+                for (let col of cols) {
+                    csvRow.push('"' + col.innerText.replace(/"/g, '""') + '"');
+                }
+                csv.push(csvRow.join(','));
+            }
+            
+            const csvContent = csv.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `analytics_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
         }
     </script>
 </body>
