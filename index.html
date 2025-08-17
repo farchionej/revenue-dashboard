@@ -774,10 +774,165 @@
             }
         }
         
-        async function loadAnalytics() {
-            // This would load historical data - implement as needed
-            const tbody = document.querySelector('#analyticsTable tbody');
-            tbody.innerHTML = '<tr><td colspan="5">Analytics coming soon...</td></tr>';
+       <!-- REPLACE THE loadAnalytics FUNCTION IN YOUR index.html FILE WITH THIS CODE -->
+<!-- Find the loadAnalytics function (around line 450-460) and replace it entirely -->
+
+<script>
+async function loadAnalytics() {
+    updateSyncStatus('syncing');
+    try {
+        // Fetch monthly data from Supabase
+        const { data: monthlyData, error: monthlyError } = await supabase
+            .from('monthly_data')
+            .select('*')
+            .order('month', { ascending: false });
+        
+        if (monthlyError) throw monthlyError;
+        
+        // Fetch payment data for collection rates
+        const { data: payments, error: paymentsError } = await supabase
+            .from('monthly_payments')
+            .select('*');
+        
+        if (paymentsError) throw paymentsError;
+        
+        // Display analytics table
+        const tbody = document.querySelector('#analyticsTable tbody');
+        tbody.innerHTML = '';
+        
+        if (!monthlyData || monthlyData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5">No analytics data available</td></tr>';
+            updateSyncStatus('connected');
+            return;
+        }
+        
+        // Calculate collection rates for each month
+        const collectionRates = {};
+        for (const record of monthlyData) {
+            const monthPayments = payments.filter(p => p.month === record.month);
+            const paidCount = monthPayments.filter(p => p.status === 'paid').length;
+            const totalCount = monthPayments.length;
+            collectionRates[record.month] = totalCount > 0 ? 
+                Math.round((paidCount / totalCount) * 100) : 0;
+        }
+        
+        // Display data
+        monthlyData.forEach(record => {
+            const row = document.createElement('tr');
+            
+            // Calculate actual vs goal
+            const revenue = record.revenue || 0;
+            const goal = record.goal || 0;
+            const delta = revenue - goal;
+            const deltaColor = delta >= 0 ? 'green' : 'red';
+            const deltaText = delta >= 0 ? `+$${delta.toLocaleString()}` : `-$${Math.abs(delta).toLocaleString()}`;
+            
+            // Get collection rate
+            const collectionRate = collectionRates[record.month] || 0;
+            
+            // Format month display
+            const [year, month] = record.month.split('-');
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const monthDisplay = `${monthNames[parseInt(month) - 1]} ${year}`;
+            
+            row.innerHTML = `
+                <td><strong>${monthDisplay}</strong></td>
+                <td>$${revenue.toLocaleString()}</td>
+                <td>$${(record.op_income || 0).toLocaleString()}</td>
+                <td>$${(record.costs || 0).toLocaleString()}</td>
+                <td>${record.margin ? record.margin.toFixed(1) + '%' : '-'}</td>
+                <td>$${goal.toLocaleString()}</td>
+                <td style="color: ${deltaColor}; font-weight: bold;">${deltaText}</td>
+                <td>${collectionRate}%</td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        // Calculate and display summary metrics
+        const totalRevenue = monthlyData.reduce((sum, r) => sum + (r.revenue || 0), 0);
+        const avgMargin = monthlyData.filter(r => r.margin).reduce((sum, r) => sum + r.margin, 0) / 
+                         monthlyData.filter(r => r.margin).length;
+        const ytdData = monthlyData.filter(r => r.month.startsWith('2025'));
+        const ytdRevenue = ytdData.reduce((sum, r) => sum + (r.revenue || 0), 0);
+        
+        // Add summary row
+        const summaryRow = document.createElement('tr');
+        summaryRow.style.backgroundColor = '#f0f0f0';
+        summaryRow.style.fontWeight = 'bold';
+        summaryRow.innerHTML = `
+            <td>YTD 2025</td>
+            <td>$${ytdRevenue.toLocaleString()}</td>
+            <td colspan="2">Total: $${totalRevenue.toLocaleString()}</td>
+            <td>${avgMargin.toFixed(1)}% avg</td>
+            <td colspan="3">Performance Summary</td>
+        `;
+        tbody.appendChild(summaryRow);
+        
+        updateSyncStatus('connected');
+        
+    } catch (error) {
+        console.error('Error loading analytics:', error);
+        const tbody = document.querySelector('#analyticsTable tbody');
+        tbody.innerHTML = `<tr><td colspan="5" style="color: red;">Error loading analytics: ${error.message}</td></tr>`;
+        updateSyncStatus('error');
+    }
+}
+</script>
+
+<!-- ALSO UPDATE THE ANALYTICS TABLE HTML -->
+<!-- Find the analytics table section and replace with this -->
+
+<div id="analytics" class="tab-content">
+    <div class="controls">
+        <button onclick="loadAnalytics()">↻ Refresh Analytics</button>
+        <button onclick="exportAnalytics()">Export to CSV</button>
+    </div>
+    <div class="table-container">
+        <table id="analyticsTable">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th>Revenue</th>
+                    <th>Operating Income</th>
+                    <th>Costs</th>
+                    <th>Margin %</th>
+                    <th>Goal</th>
+                    <th>Delta</th>
+                    <th>Collection Rate</th>
+                </tr>
+            </thead>
+           <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ADD THIS EXPORT FUNCTION TOO -->
+<script>
+function exportAnalytics() {
+    // Get table data
+    const table = document.getElementById('analyticsTable');
+    const rows = table.querySelectorAll('tr');
+    
+    let csv = [];
+    for (let row of rows) {
+        const cols = row.querySelectorAll('td, th');
+        const csvRow = [];
+        for (let col of cols) {
+            csvRow.push('"' + col.innerText.replace(/"/g, '""') + '"');
+        }
+        csv.push(csvRow.join(','));
+    }
+    
+    // Download CSV
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+}
+</script>
         }
         
         async function refreshData() {
