@@ -1,163 +1,890 @@
-<!-- REPLACE THE loadAnalytics FUNCTION IN YOUR index.html FILE WITH THIS CODE -->
-<!-- Find the loadAnalytics function (around line 450-460) and replace it entirely -->
-
-<script>
-async function loadAnalytics() {
-    updateSyncStatus('syncing');
-    try {
-        // Fetch monthly data from Supabase
-        const { data: monthlyData, error: monthlyError } = await supabase
-            .from('monthly_data')
-            .select('*')
-            .order('month', { ascending: false });
-        
-        if (monthlyError) throw monthlyError;
-        
-        // Fetch payment data for collection rates
-        const { data: payments, error: paymentsError } = await supabase
-            .from('monthly_payments')
-            .select('*');
-        
-        if (paymentsError) throw paymentsError;
-        
-        // Display analytics table
-        const tbody = document.querySelector('#analyticsTable tbody');
-        tbody.innerHTML = '';
-        
-        if (!monthlyData || monthlyData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5">No analytics data available</td></tr>';
-            updateSyncStatus('connected');
-            return;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revenue Dashboard - Team Version</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
         
-        // Calculate collection rates for each month
-        const collectionRates = {};
-        for (const record of monthlyData) {
-            const monthPayments = payments.filter(p => p.month === record.month);
-            const paidCount = monthPayments.filter(p => p.status === 'paid').length;
-            const totalCount = monthPayments.length;
-            collectionRates[record.month] = totalCount > 0 ? 
-                Math.round((paidCount / totalCount) * 100) : 0;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
         }
         
-        // Display data
-        monthlyData.forEach(record => {
-            const row = document.createElement('tr');
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .setup-notice {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .setup-notice h2 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+        
+        .setup-notice input {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        
+        .setup-notice button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .sync-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 8px 15px;
+            background: #28a745;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .sync-status.syncing {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .sync-status.error {
+            background: #dc3545;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            padding: 20px;
+            color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .metric-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .tab.active {
+            color: #667eea;
+        }
+        
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        select, input {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.95em;
+            transition: border-color 0.3s ease;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: transform 0.2s ease;
+        }
+        
+        button:hover {
+            transform: scale(1.05);
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #333;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .status-paid {
+            background: #4caf50;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            cursor: pointer;
+            display: inline-block;
+        }
+        
+        .status-paused {
+            background: #9e9e9e;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            cursor: pointer;
+            display: inline-block;
+        }
+        
+        .status-unpaid {
+            background: #f44336;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            cursor: pointer;
+            display: inline-block;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="sync-status" id="syncStatus">
+            <span class="sync-dot">●</span>
+            <span>Connected</span>
+        </div>
+        
+        <h1>📊 Revenue Dashboard - Team Version</h1>
+        
+        <div id="setupNotice" class="setup-notice" style="display: none;">
+            <h2>🔧 Connect to Supabase</h2>
+            <p>Enter your Supabase credentials to connect the dashboard:</p>
+            <input type="text" id="supabaseUrl" placeholder="Your Supabase URL (https://xxxxx.supabase.co)">
+            <input type="text" id="supabaseKey" placeholder="Your Supabase anon/public key (eyJ...)">
+            <button onclick="connectSupabase()">Connect Database</button>
+            <p style="margin-top: 10px; font-size: 0.9em; color: #666;">
+                These credentials are saved in your browser only. Share them with your team members so they can connect too.
+            </p>
+        </div>
+        
+        <div id="dashboardContent" style="display: none;">
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Current Month Revenue</div>
+                    <div class="metric-value" id="currentMonthRevenue">$0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Total Expected</div>
+                    <div class="metric-value" id="totalExpected">$0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Outstanding</div>
+                    <div class="metric-value" id="totalOutstanding">$0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Collection Rate</div>
+                    <div class="metric-value" id="collectionRate">0%</div>
+                </div>
+            </div>
             
-            // Calculate actual vs goal
-            const revenue = record.revenue || 0;
-            const goal = record.goal || 0;
-            const delta = revenue - goal;
-            const deltaColor = delta >= 0 ? 'green' : 'red';
-            const deltaText = delta >= 0 ? `+$${delta.toLocaleString()}` : `-$${Math.abs(delta).toLocaleString()}`;
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab(event, 'payments')">Payment Tracking</button>
+                <button class="tab" onclick="switchTab(event, 'clients')">Manage Clients</button>
+                <button class="tab" onclick="switchTab(event, 'analytics')">Analytics</button>
+            </div>
             
-            // Get collection rate
-            const collectionRate = collectionRates[record.month] || 0;
+            <div id="payments" class="tab-content active">
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Month:</label>
+                        <input type="month" id="monthSelector" value="2025-08" onchange="loadPayments()">
+                    </div>
+                    <button onclick="markAllPaid()">Mark All Paid</button>
+                    <button onclick="generatePendingList()">Show Unpaid</button>
+                    <button onclick="refreshData()" style="background: #28a745;">↻ Refresh</button>
+                </div>
+                
+                <div class="table-container">
+                    <table id="paymentsTable">
+                        <thead>
+                            <tr>
+                                <th>Client Name</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Payment Date</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="6" class="loading">
+                                    <div class="spinner"></div>
+                                    Loading payments...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
             
-            // Format month display
-            const [year, month] = record.month.split('-');
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const monthDisplay = `${monthNames[parseInt(month) - 1]} ${year}`;
+            <div id="clients" class="tab-content">
+                <div class="controls">
+                    <button onclick="showAddClientForm()">+ Add Client</button>
+                    <button onclick="loadClients()">↻ Refresh</button>
+                </div>
+                
+                <div class="table-container">
+                    <table id="clientsTable">
+                        <thead>
+                            <tr>
+                                <th>Client Name</th>
+                                <th>Monthly Amount</th>
+                                <th>Status</th>
+                                <th>Start Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="5" class="loading">Loading clients...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
             
-            row.innerHTML = `
-                <td><strong>${monthDisplay}</strong></td>
-                <td>$${revenue.toLocaleString()}</td>
-                <td>$${(record.op_income || 0).toLocaleString()}</td>
-                <td>$${(record.costs || 0).toLocaleString()}</td>
-                <td>${record.margin ? record.margin.toFixed(1) + '%' : '-'}</td>
-                <td>$${goal.toLocaleString()}</td>
-                <td style="color: ${deltaColor}; font-weight: bold;">${deltaText}</td>
-                <td>${collectionRate}%</td>
+            <div id="analytics" class="tab-content">
+                <div class="controls">
+                    <button onclick="loadAnalytics()">↻ Refresh Analytics</button>
+                </div>
+                <div class="table-container">
+                    <table id="analyticsTable">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Total Expected</th>
+                                <th>Total Paid</th>
+                                <th>Outstanding</th>
+                                <th>Collection Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="5" class="loading">Loading analytics...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let supabase = null;
+        let clients = [];
+        let payments = {};
+        
+        // Initialize - Check for saved credentials
+        window.onload = function() {
+            const savedUrl = localStorage.getItem('supabaseUrl');
+            const savedKey = localStorage.getItem('supabaseKey');
+            
+            if (savedUrl && savedKey) {
+                document.getElementById('supabaseUrl').value = savedUrl;
+                document.getElementById('supabaseKey').value = savedKey;
+                connectSupabase();
+            } else {
+                document.getElementById('setupNotice').style.display = 'block';
+            }
+        };
+        
+        async function connectSupabase() {
+            const url = document.getElementById('supabaseUrl').value.trim();
+            const key = document.getElementById('supabaseKey').value.trim();
+            
+            if (!url || !key) {
+                alert('Please enter both URL and API key');
+                return;
+            }
+            
+            try {
+                // Initialize Supabase client
+                supabase = window.supabase.createClient(url, key);
+                
+                // Test connection
+                const { data, error } = await supabase.from('clients').select('count');
+                
+                if (error) throw error;
+                
+                // Save credentials
+                localStorage.setItem('supabaseUrl', url);
+                localStorage.setItem('supabaseKey', key);
+                
+                // Hide setup, show dashboard
+                document.getElementById('setupNotice').style.display = 'none';
+                document.getElementById('dashboardContent').style.display = 'block';
+                
+                // Update status
+                updateSyncStatus('connected');
+                
+                // Check if we need to initialize data
+                await initializeDataIfNeeded();
+                
+                // Load initial data
+                await loadClients();
+                await loadPayments();
+                updateMetrics();
+                
+            } catch (error) {
+                alert('Connection failed: ' + error.message);
+                updateSyncStatus('error');
+            }
+        }
+        
+        async function initializeDataIfNeeded() {
+            // Check if we have any clients
+            const { data: existingClients, error } = await supabase
+                .from('clients')
+                .select('*')
+                .limit(1);
+            
+            if (!error && (!existingClients || existingClients.length === 0)) {
+                // Initialize with sample data
+                const sampleClients = [
+                    { name: 'Twelve Oak', amount: 250, status: 'active', start_date: '2023-12-01' },
+                    { name: 'Limoncello', amount: 200, status: 'active', start_date: '2023-12-01' },
+                    { name: 'Regal', amount: 1200, status: 'active', start_date: '2023-12-01' },
+                    { name: 'Evergreen', amount: 650, status: 'active', start_date: '2024-01-01' },
+                    { name: 'New Spot', amount: 250, status: 'active', start_date: '2024-02-01' },
+                    { name: 'FSDC', amount: 700, status: 'active', start_date: '2024-03-01' },
+                    { name: 'Cote Ouest', amount: 300, status: 'active', start_date: '2024-02-01' },
+                    { name: 'Nisei (Dine Credit)', amount: 500, status: 'active', start_date: '2024-04-01' },
+                    { name: "Sandy's", amount: 200, status: 'paused', start_date: '2024-05-01' },
+                    { name: 'Galene', amount: 350, status: 'paused', start_date: '2024-04-01' },
+                    { name: 'The Fly Trap', amount: 300, status: 'paused', start_date: '2024-05-01' },
+                    { name: "Hot Johnnie's", amount: 400, status: 'active', start_date: '2024-04-01' },
+                    { name: 'Amarena', amount: 300, status: 'active', start_date: '2024-05-01' },
+                    { name: 'Californios (Dine Credit)', amount: 400, status: 'active', start_date: '2024-06-01' },
+                    { name: 'Eat Street', amount: 250, status: 'paused', start_date: '2024-06-01' },
+                    { name: 'Dacha', amount: 500, status: 'active', start_date: '2024-06-01' },
+                    { name: "John's Grill", amount: 2000, status: 'active', start_date: '2024-07-01' },
+                    { name: 'Mr. Magic', amount: 410, status: 'active', start_date: '2024-07-01' },
+                    { name: '3rd Cousin', amount: 500, status: 'active', start_date: '2024-07-01' },
+                    { name: 'Harborview', amount: 850, status: 'active', start_date: '2024-08-01' },
+                    { name: 'San Benito House', amount: 2000, status: 'active', start_date: '2024-08-01' },
+                    { name: 'EzyDog', amount: 2000, status: 'active', start_date: '2024-09-01' },
+                    { name: 'Kei', amount: 400, status: 'active', start_date: '2024-10-01' },
+                    { name: 'District', amount: 850, status: 'active', start_date: '2024-11-01' },
+                    { name: 'Indigo', amount: 350, status: 'active', start_date: '2024-11-01' }
+                ];
+                
+                await supabase.from('clients').insert(sampleClients);
+                console.log('Initialized with sample client data');
+            }
+        }
+        
+        async function loadClients() {
+            updateSyncStatus('syncing');
+            try {
+                const { data, error } = await supabase
+                    .from('clients')
+                    .select('*')
+                    .order('name');
+                
+                if (error) throw error;
+                
+                clients = data;
+                displayClients();
+                updateSyncStatus('connected');
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                updateSyncStatus('error');
+            }
+        }
+        
+        async function loadPayments() {
+            const month = document.getElementById('monthSelector').value;
+            if (!month) return;
+            
+            updateSyncStatus('syncing');
+            try {
+                const { data, error } = await supabase
+                    .from('monthly_payments')
+                    .select('*')
+                    .eq('month', month);
+                
+                if (error) throw error;
+                
+                payments = {};
+                data.forEach(payment => {
+                    payments[payment.client_id] = payment;
+                });
+                
+                displayPayments();
+                updateMetrics();
+                updateSyncStatus('connected');
+            } catch (error) {
+                console.error('Error loading payments:', error);
+                updateSyncStatus('error');
+            }
+        }
+        
+        function displayClients() {
+            const tbody = document.querySelector('#clientsTable tbody');
+            tbody.innerHTML = '';
+            
+            clients.forEach(client => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${client.name}</td>
+                    <td>$${client.amount.toLocaleString()}</td>
+                    <td><span class="status-${client.status}">${client.status}</span></td>
+                    <td>${client.start_date}</td>
+                    <td>
+                        <button onclick="editClient(${client.id})">Edit</button>
+                        <button onclick="deleteClient(${client.id})" style="background: #dc3545;">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function displayPayments() {
+            const tbody = document.querySelector('#paymentsTable tbody');
+            tbody.innerHTML = '';
+            
+            const month = document.getElementById('monthSelector').value;
+            const monthDate = new Date(month + '-01');
+            
+            clients.forEach(client => {
+                const startDate = new Date(client.start_date);
+                if (startDate <= monthDate) {
+                    const payment = payments[client.id] || { status: 'unpaid' };
+                    const status = client.status === 'paused' ? 'paused' : payment.status;
+                    
+                    const row = document.createElement('tr');
+                    if (status === 'paid') {
+                        row.style.backgroundColor = '#f0f9f0';
+                    } else if (status === 'unpaid') {
+                        row.style.backgroundColor = '#fff5f5';
+                    }
+                    
+                    row.innerHTML = `
+                        <td><strong>${client.name}</strong></td>
+                        <td>$${client.amount.toLocaleString()}</td>
+                        <td>
+                            <span class="status-${status}" 
+                                  onclick="togglePaymentStatus(${client.id}, '${status}')"
+                                  style="cursor: ${client.status === 'paused' ? 'not-allowed' : 'pointer'}">
+                                ${status}
+                            </span>
+                        </td>
+                        <td>${payment.payment_date || '-'}</td>
+                        <td>${payment.notes || '-'}</td>
+                        <td>
+                            <button onclick="editNotes(${client.id})">Notes</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                }
+            });
+        }
+        
+        async function togglePaymentStatus(clientId, currentStatus) {
+            const client = clients.find(c => c.id === clientId);
+            if (client.status === 'paused') return;
+            
+            const month = document.getElementById('monthSelector').value;
+            const newStatus = currentStatus === 'paid' ? 'unpaid' : 'paid';
+            const paymentDate = newStatus === 'paid' ? new Date().toISOString().split('T')[0] : null;
+            
+            updateSyncStatus('syncing');
+            try {
+                // Check if payment record exists
+                const { data: existing } = await supabase
+                    .from('monthly_payments')
+                    .select('*')
+                    .eq('client_id', clientId)
+                    .eq('month', month)
+                    .single();
+                
+                if (existing) {
+                    // Update existing
+                    await supabase
+                        .from('monthly_payments')
+                        .update({ status: newStatus, payment_date: paymentDate })
+                        .eq('id', existing.id);
+                } else {
+                    // Create new
+                    await supabase
+                        .from('monthly_payments')
+                        .insert({
+                            client_id: clientId,
+                            month: month,
+                            status: newStatus,
+                            payment_date: paymentDate
+                        });
+                }
+                
+                await loadPayments();
+            } catch (error) {
+                console.error('Error updating payment:', error);
+                updateSyncStatus('error');
+            }
+        }
+        
+        async function markAllPaid() {
+            const month = document.getElementById('monthSelector').value;
+            const today = new Date().toISOString().split('T')[0];
+            
+            updateSyncStatus('syncing');
+            try {
+                for (const client of clients) {
+                    if (client.status !== 'paused') {
+                        const startDate = new Date(client.start_date);
+                        const monthDate = new Date(month + '-01');
+                        
+                        if (startDate <= monthDate) {
+                            const { data: existing } = await supabase
+                                .from('monthly_payments')
+                                .select('*')
+                                .eq('client_id', client.id)
+                                .eq('month', month)
+                                .single();
+                            
+                            if (existing) {
+                                await supabase
+                                    .from('monthly_payments')
+                                    .update({ status: 'paid', payment_date: today })
+                                    .eq('id', existing.id);
+                            } else {
+                                await supabase
+                                    .from('monthly_payments')
+                                    .insert({
+                                        client_id: client.id,
+                                        month: month,
+                                        status: 'paid',
+                                        payment_date: today
+                                    });
+                            }
+                        }
+                    }
+                }
+                
+                await loadPayments();
+            } catch (error) {
+                console.error('Error marking all paid:', error);
+                updateSyncStatus('error');
+            }
+        }
+        
+        function updateMetrics() {
+            const month = document.getElementById('monthSelector').value;
+            let totalExpected = 0;
+            let totalPaid = 0;
+            
+            const monthDate = new Date(month + '-01');
+            
+            clients.forEach(client => {
+                const startDate = new Date(client.start_date);
+                if (startDate <= monthDate && client.status !== 'paused') {
+                    totalExpected += parseFloat(client.amount);
+                    const payment = payments[client.id];
+                    if (payment && payment.status === 'paid') {
+                        totalPaid += parseFloat(client.amount);
+                    }
+                }
+            });
+            
+            const outstanding = totalExpected - totalPaid;
+            const collectionRate = totalExpected > 0 ? (totalPaid / totalExpected * 100).toFixed(1) : 0;
+            
+            document.getElementById('currentMonthRevenue').textContent = `$${totalPaid.toLocaleString()}`;
+            document.getElementById('totalExpected').textContent = `$${totalExpected.toLocaleString()}`;
+            document.getElementById('totalOutstanding').textContent = `$${outstanding.toLocaleString()}`;
+            document.getElementById('collectionRate').textContent = `${collectionRate}%`;
+        }
+        
+        function updateSyncStatus(status) {
+            const statusEl = document.getElementById('syncStatus');
+            statusEl.className = 'sync-status ' + (status === 'syncing' ? 'syncing' : status === 'error' ? 'error' : '');
+            statusEl.innerHTML = `
+                <span class="sync-dot">●</span>
+                <span>${status === 'syncing' ? 'Syncing...' : status === 'error' ? 'Error' : 'Connected'}</span>
             `;
-            tbody.appendChild(row);
-        });
-        
-        // Calculate and display summary metrics
-        const totalRevenue = monthlyData.reduce((sum, r) => sum + (r.revenue || 0), 0);
-        const avgMargin = monthlyData.filter(r => r.margin).reduce((sum, r) => sum + r.margin, 0) / 
-                         monthlyData.filter(r => r.margin).length;
-        const ytdData = monthlyData.filter(r => r.month.startsWith('2025'));
-        const ytdRevenue = ytdData.reduce((sum, r) => sum + (r.revenue || 0), 0);
-        
-        // Add summary row
-        const summaryRow = document.createElement('tr');
-        summaryRow.style.backgroundColor = '#f0f0f0';
-        summaryRow.style.fontWeight = 'bold';
-        summaryRow.innerHTML = `
-            <td>YTD 2025</td>
-            <td>$${ytdRevenue.toLocaleString()}</td>
-            <td colspan="2">Total: $${totalRevenue.toLocaleString()}</td>
-            <td>${avgMargin.toFixed(1)}% avg</td>
-            <td colspan="3">Performance Summary</td>
-        `;
-        tbody.appendChild(summaryRow);
-        
-        updateSyncStatus('connected');
-        
-    } catch (error) {
-        console.error('Error loading analytics:', error);
-        const tbody = document.querySelector('#analyticsTable tbody');
-        tbody.innerHTML = `<tr><td colspan="5" style="color: red;">Error loading analytics: ${error.message}</td></tr>`;
-        updateSyncStatus('error');
-    }
-}
-</script>
-
-<!-- ALSO UPDATE THE ANALYTICS TABLE HTML -->
-<!-- Find the analytics table section and replace with this -->
-
-<div id="analytics" class="tab-content">
-    <div class="controls">
-        <button onclick="loadAnalytics()">↻ Refresh Analytics</button>
-        <button onclick="exportAnalytics()">Export to CSV</button>
-    </div>
-    <div class="table-container">
-        <table id="analyticsTable">
-            <thead>
-                <tr>
-                    <th>Month</th>
-                    <th>Revenue</th>
-                    <th>Operating Income</th>
-                    <th>Costs</th>
-                    <th>Margin %</th>
-                    <th>Goal</th>
-                    <th>Delta</th>
-                    <th>Collection Rate</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td colspan="8" class="loading">Loading analytics...</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- ADD THIS EXPORT FUNCTION TOO -->
-<script>
-function exportAnalytics() {
-    // Get table data
-    const table = document.getElementById('analyticsTable');
-    const rows = table.querySelectorAll('tr');
-    
-    let csv = [];
-    for (let row of rows) {
-        const cols = row.querySelectorAll('td, th');
-        const csvRow = [];
-        for (let col of cols) {
-            csvRow.push('"' + col.innerText.replace(/"/g, '""') + '"');
         }
-        csv.push(csvRow.join(','));
-    }
-    
-    // Download CSV
-    const csvContent = csv.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `analytics_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-}
-</script>
+        
+        function switchTab(event, tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            if (tabName === 'analytics') {
+                loadAnalytics();
+            }
+        }
+        
+        async function loadAnalytics() {
+            // This would load historical data - implement as needed
+            const tbody = document.querySelector('#analyticsTable tbody');
+            tbody.innerHTML = '<tr><td colspan="5">Analytics coming soon...</td></tr>';
+        }
+        
+        async function refreshData() {
+            await loadClients();
+            await loadPayments();
+        }
+        
+        function generatePendingList() {
+            const month = document.getElementById('monthSelector').value;
+            const monthDate = new Date(month + '-01');
+            const unpaidClients = [];
+            
+            clients.forEach(client => {
+                const startDate = new Date(client.start_date);
+                if (startDate <= monthDate && client.status !== 'paused') {
+                    const payment = payments[client.id];
+                    if (!payment || payment.status !== 'paid') {
+                        unpaidClients.push(client);
+                    }
+                }
+            });
+            
+            if (unpaidClients.length === 0) {
+                alert('All clients have paid! 🎉');
+                return;
+            }
+            
+            let message = 'Unpaid Clients for ' + month + ':\n\n';
+            let total = 0;
+            unpaidClients.forEach(client => {
+                message += `• ${client.name}: $${client.amount}\n`;
+                total += parseFloat(client.amount);
+            });
+            message += `\nTotal Outstanding: $${total.toLocaleString()}`;
+            
+            alert(message);
+        }
+        
+        function showAddClientForm() {
+            const name = prompt('Client Name:');
+            if (!name) return;
+            
+            const amount = prompt('Monthly Amount:');
+            if (!amount) return;
+            
+            const startDate = prompt('Start Date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+            if (!startDate) return;
+            
+            addClient(name, parseFloat(amount), startDate);
+        }
+        
+        async function addClient(name, amount, startDate) {
+            updateSyncStatus('syncing');
+            try {
+                await supabase.from('clients').insert({
+                    name: name,
+                    amount: amount,
+                    status: 'active',
+                    start_date: startDate
+                });
+                
+                await loadClients();
+                await loadPayments();
+            } catch (error) {
+                console.error('Error adding client:', error);
+                updateSyncStatus('error');
+            }
+        }
+        
+        async function editNotes(clientId) {
+            const month = document.getElementById('monthSelector').value;
+            const payment = payments[clientId];
+            const notes = prompt('Enter notes:', payment?.notes || '');
+            
+            if (notes === null) return;
+            
+            updateSyncStatus('syncing');
+            try {
+                const { data: existing } = await supabase
+                    .from('monthly_payments')
+                    .select('*')
+                    .eq('client_id', clientId)
+                    .eq('month', month)
+                    .single();
+                
+                if (existing) {
+                    await supabase
+                        .from('monthly_payments')
+                        .update({ notes: notes })
+                        .eq('id', existing.id);
+                } else {
+                    await supabase
+                        .from('monthly_payments')
+                        .insert({
+                            client_id: clientId,
+                            month: month,
+                            status: 'unpaid',
+                            notes: notes
+                        });
+                }
+                
+                await loadPayments();
+            } catch (error) {
+                console.error('Error updating notes:', error);
+                updateSyncStatus('error');
+            }
+        }
+    </script>
+</body>
+</html>
