@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Revenue Dashboard - Enhanced</title>
+    <title>Revenue Dashboard - Complete</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -262,6 +262,15 @@
             display: inline-block;
         }
         
+        .status-active {
+            background: #4caf50;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            display: inline-block;
+        }
+        
         .loading {
             text-align: center;
             padding: 40px;
@@ -312,6 +321,123 @@
             font-size: 0.95em;
             color: #666;
         }
+        
+        /* Chart Styles */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .chart-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+        }
+        
+        /* Cost Management Styles */
+        .cost-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .cost-item {
+            text-align: center;
+        }
+        
+        .cost-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .cost-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .quick-cost-entry {
+            background: #f0f4f8;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .quick-cost-entry h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .cost-input-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 10px;
+            align-items: end;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+        }
+        
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -349,6 +475,7 @@
             <button class="tab" onclick="switchTab(event, 'analytics')">Analytics & Charts</button>
         </div>
         
+        <!-- Payment Tracking Tab -->
         <div id="payments" class="tab-content active">
             <div class="controls">
                 <div class="control-group">
@@ -394,7 +521,177 @@
             </div>
         </div>
         
-        <!-- Other tab content remains the same -->
+        <!-- Manage Clients Tab -->
+        <div id="clients" class="tab-content">
+            <div class="controls">
+                <button onclick="showAddClientModal()">+ Add Client</button>
+                <button onclick="loadClients()">↻ Refresh</button>
+            </div>
+            
+            <div class="table-container">
+                <table id="clientsTable">
+                    <thead>
+                        <tr>
+                            <th>Client Name</th>
+                            <th>Monthly Amount</th>
+                            <th>Status</th>
+                            <th>Start Date</th>
+                            <th>Lifetime Value</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" class="loading">Loading clients...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Cost Management Tab -->
+        <div id="costs" class="tab-content">
+            <div class="quick-cost-entry">
+                <h3>Quick Cost Entry</h3>
+                <div class="cost-input-grid">
+                    <input type="month" id="costMonth" value="2025-08">
+                    <input type="number" id="quickCostAmount" placeholder="Amount" step="0.01">
+                    <button onclick="quickUpdateCosts()">Update Costs</button>
+                </div>
+            </div>
+            
+            <div class="cost-summary">
+                <div class="cost-item">
+                    <div class="cost-label">Current Month Costs</div>
+                    <div class="cost-value" id="currentCosts">$0</div>
+                </div>
+                <div class="cost-item">
+                    <div class="cost-label">Operating Income</div>
+                    <div class="cost-value" id="currentOpIncome">$0</div>
+                </div>
+                <div class="cost-item">
+                    <div class="cost-label">Gross Margin</div>
+                    <div class="cost-value" id="currentGrossMargin">0%</div>
+                </div>
+                <div class="cost-item">
+                    <div class="cost-label">YTD Avg Costs</div>
+                    <div class="cost-value" id="avgCosts">$0</div>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table id="costsTable">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Revenue</th>
+                            <th>Costs</th>
+                            <th>Operating Income</th>
+                            <th>Margin %</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" class="loading">Loading cost data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Analytics & Charts Tab -->
+        <div id="analytics" class="tab-content">
+            <div class="controls">
+                <button onclick="loadAnalytics()">↻ Refresh Analytics</button>
+                <button onclick="exportAnalytics()">Export to CSV</button>
+                <select id="chartTimeRange" onchange="updateCharts()">
+                    <option value="all">All Time</option>
+                    <option value="2025">2025 Only</option>
+                    <option value="2024">2024 Only</option>
+                    <option value="last12">Last 12 Months</option>
+                    <option value="last6">Last 6 Months</option>
+                </select>
+            </div>
+            
+            <div class="charts-grid">
+                <div class="chart-container">
+                    <div class="chart-title">Revenue Trend</div>
+                    <div class="chart-wrapper">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Revenue vs Goal</div>
+                    <div class="chart-wrapper">
+                        <canvas id="goalChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Margin Trend</div>
+                    <div class="chart-wrapper">
+                        <canvas id="marginChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Cost Analysis</div>
+                    <div class="chart-wrapper">
+                        <canvas id="costChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="table-container" style="margin-top: 30px;">
+                <table id="analyticsTable">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Revenue</th>
+                            <th>Op Income</th>
+                            <th>Costs</th>
+                            <th>Margin %</th>
+                            <th>Goal</th>
+                            <th>Delta</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="7" class="loading">Loading analytics...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Add Client Modal -->
+        <div id="clientModal" class="modal">
+            <div class="modal-content">
+                <h2>Add New Client</h2>
+                <form id="clientForm" onsubmit="submitClient(event)">
+                    <div class="form-group">
+                        <label>Client Name:</label>
+                        <input type="text" id="clientName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Monthly Amount:</label>
+                        <input type="number" id="clientAmount" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Status:</label>
+                        <select id="clientStatus">
+                            <option value="active">Active</option>
+                            <option value="paused">Paused</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Start Date:</label>
+                        <input type="date" id="clientStartDate" required>
+                    </div>
+                    <button type="submit">Add Client</button>
+                    <button type="button" onclick="closeClientModal()">Cancel</button>
+                </form>
+            </div>
+        </div>
     </div>
     
     <script>
@@ -402,6 +699,8 @@
         let clients = [];
         let payments = {};
         let monthlyPayments = [];
+        let monthlyData = [];
+        let charts = {};
         let currentSort = { column: null, direction: 'asc' };
         let currentFilter = 'all';
         
@@ -414,8 +713,19 @@
                 supabase = window.supabase.createClient(savedUrl, savedKey);
                 loadClients();
                 loadPayments();
+                loadAnalytics();
             } else {
-                alert('Please configure Supabase connection in your dashboard');
+                // If no saved credentials, prompt user to enter them
+                const url = prompt('Enter Supabase URL:');
+                const key = prompt('Enter Supabase API Key:');
+                if (url && key) {
+                    localStorage.setItem('supabaseUrl', url);
+                    localStorage.setItem('supabaseKey', key);
+                    supabase = window.supabase.createClient(url, key);
+                    loadClients();
+                    loadPayments();
+                    loadAnalytics();
+                }
             }
         };
         
@@ -430,6 +740,7 @@
                 if (error) throw error;
                 
                 clients = data;
+                displayClients();
                 updateSyncStatus('connected');
             } catch (error) {
                 console.error('Error loading clients:', error);
@@ -478,8 +789,77 @@
             }
         }
         
+        async function loadAnalytics() {
+            updateSyncStatus('syncing');
+            try {
+                const { data: analyticsData, error } = await supabase
+                    .from('monthly_data')
+                    .select('*')
+                    .order('month', { ascending: true });
+                
+                if (error) throw error;
+                
+                monthlyData = analyticsData || [];
+                displayAnalytics();
+                updateCharts();
+                updateSyncStatus('connected');
+                
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+                updateSyncStatus('error');
+            }
+        }
+        
+        async function loadCosts() {
+            updateSyncStatus('syncing');
+            try {
+                const { data, error } = await supabase
+                    .from('monthly_data')
+                    .select('*')
+                    .order('month', { ascending: false });
+                
+                if (error) throw error;
+                
+                displayCosts(data);
+                updateCostSummary(data);
+                updateSyncStatus('connected');
+                
+            } catch (error) {
+                console.error('Error loading costs:', error);
+                updateSyncStatus('error');
+            }
+        }
+        
+        function displayClients() {
+            const tbody = document.querySelector('#clientsTable tbody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            
+            clients.forEach(client => {
+                // Calculate lifetime value (simplified)
+                const monthsSinceStart = Math.max(1, Math.floor((new Date() - new Date(client.start_date)) / (30 * 24 * 60 * 60 * 1000)));
+                const lifetimeValue = client.status === 'active' ? (parseFloat(client.amount) * monthsSinceStart) : 0;
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${client.name}</strong></td>
+                    <td>$${parseFloat(client.amount).toLocaleString()}</td>
+                    <td><span class="status-${client.status}">${client.status}</span></td>
+                    <td>${client.start_date}</td>
+                    <td>$${lifetimeValue.toLocaleString()}</td>
+                    <td>
+                        <button onclick="editClient(${client.id})">Edit</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
         function displayPayments() {
             const tbody = document.querySelector('#paymentsTable tbody');
+            if (!tbody) return;
+            
             tbody.innerHTML = '';
             
             if (monthlyPayments.length === 0) {
@@ -564,6 +944,296 @@
             });
         }
         
+        function displayCosts(data) {
+            const tbody = document.querySelector('#costsTable tbody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6">No cost data available</td></tr>';
+                return;
+            }
+            
+            data.forEach(record => {
+                const row = document.createElement('tr');
+                const revenue = parseFloat(record.revenue) || 0;
+                const costs = parseFloat(record.costs) || 0;
+                const opIncome = parseFloat(record.op_income) || 0;
+                const margin = record.margin ? parseFloat(record.margin).toFixed(1) : '0.0';
+                
+                const [year, month] = record.month.split('-');
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const monthDisplay = `${monthNames[parseInt(month) - 1]} ${year}`;
+                
+                row.innerHTML = `
+                    <td><strong>${monthDisplay}</strong></td>
+                    <td>$${revenue.toLocaleString()}</td>
+                    <td>$${costs.toLocaleString()}</td>
+                    <td>$${opIncome.toLocaleString()}</td>
+                    <td>${margin}%</td>
+                    <td>
+                        <button onclick="editCost('${record.month}', ${revenue}, ${costs})">Edit</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function displayAnalytics() {
+            const tbody = document.querySelector('#analyticsTable tbody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            
+            if (!monthlyData || monthlyData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7">No analytics data available</td></tr>';
+                return;
+            }
+            
+            // Sort by month descending for table display
+            const sortedData = [...monthlyData].sort((a, b) => b.month.localeCompare(a.month));
+            
+            sortedData.forEach(record => {
+                const row = document.createElement('tr');
+                const revenue = parseFloat(record.revenue) || 0;
+                const goal = parseFloat(record.goal) || 0;
+                const delta = revenue - goal;
+                const deltaColor = delta >= 0 ? 'green' : 'red';
+                const deltaText = delta >= 0 ? `+$${delta.toLocaleString()}` : `-$${Math.abs(delta).toLocaleString()}`;
+                
+                const [year, month] = record.month.split('-');
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const monthDisplay = `${monthNames[parseInt(month) - 1]} ${year}`;
+                
+                row.innerHTML = `
+                    <td><strong>${monthDisplay}</strong></td>
+                    <td>$${revenue.toLocaleString()}</td>
+                    <td>$${(parseFloat(record.op_income) || 0).toLocaleString()}</td>
+                    <td>$${(parseFloat(record.costs) || 0).toLocaleString()}</td>
+                    <td>${record.margin ? parseFloat(record.margin).toFixed(1) + '%' : '-'}</td>
+                    <td>$${goal.toLocaleString()}</td>
+                    <td style="color: ${deltaColor}; font-weight: bold;">${deltaText}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function updateCostSummary(data) {
+            const currentMonth = document.getElementById('costMonth').value;
+            const currentYear = currentMonth.split('-')[0];
+            
+            const currentMonthData = data.find(d => d.month === currentMonth);
+            const ytdData = data.filter(d => d.month.startsWith(currentYear));
+            
+            // Current month values
+            const currentCosts = currentMonthData ? parseFloat(currentMonthData.costs) || 0 : 0;
+            const currentRevenue = currentMonthData ? parseFloat(currentMonthData.revenue) || 0 : 0;
+            const currentOpIncome = currentMonthData ? parseFloat(currentMonthData.op_income) || 0 : 0;
+            const currentMargin = currentRevenue > 0 ? ((currentOpIncome / currentRevenue) * 100).toFixed(1) : 0;
+            
+            // YTD averages
+            const avgCosts = ytdData.length > 0 
+                ? ytdData.reduce((sum, d) => sum + (parseFloat(d.costs) || 0), 0) / ytdData.length 
+                : 0;
+            
+            document.getElementById('currentCosts').textContent = `$${currentCosts.toLocaleString()}`;
+            document.getElementById('currentOpIncome').textContent = `$${currentOpIncome.toLocaleString()}`;
+            document.getElementById('currentGrossMargin').textContent = `${currentMargin}%`;
+            document.getElementById('avgCosts').textContent = `$${avgCosts.toLocaleString()}`;
+        }
+        
+        function updateCharts() {
+            if (!monthlyData || monthlyData.length === 0) return;
+            
+            const timeRange = document.getElementById('chartTimeRange').value;
+            let filteredData = [...monthlyData];
+            
+            // Filter data based on selected time range
+            const now = new Date();
+            if (timeRange === '2025') {
+                filteredData = filteredData.filter(d => d.month.startsWith('2025'));
+            } else if (timeRange === '2024') {
+                filteredData = filteredData.filter(d => d.month.startsWith('2024'));
+            } else if (timeRange === 'last12') {
+                const cutoff = new Date();
+                cutoff.setMonth(cutoff.getMonth() - 12);
+                filteredData = filteredData.filter(d => new Date(d.month + '-01') >= cutoff);
+            } else if (timeRange === 'last6') {
+                const cutoff = new Date();
+                cutoff.setMonth(cutoff.getMonth() - 6);
+                filteredData = filteredData.filter(d => new Date(d.month + '-01') >= cutoff);
+            }
+            
+            const labels = filteredData.map(d => {
+                const [year, month] = d.month.split('-');
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return `${monthNames[parseInt(month) - 1]} ${year.slice(2)}`;
+            });
+            
+            const revenues = filteredData.map(d => parseFloat(d.revenue) || 0);
+            const costs = filteredData.map(d => parseFloat(d.costs) || 0);
+            const opIncomes = filteredData.map(d => parseFloat(d.op_income) || 0);
+            const margins = filteredData.map(d => parseFloat(d.margin) || 0);
+            const goals = filteredData.map(d => parseFloat(d.goal) || 0);
+            
+            // Revenue Trend Chart
+            if (charts.revenue) charts.revenue.destroy();
+            const revenueCtx = document.getElementById('revenueChart');
+            if (revenueCtx) {
+                charts.revenue = new Chart(revenueCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Revenue',
+                            data: revenues,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0.3
+                        }, {
+                            label: 'Operating Income',
+                            data: opIncomes,
+                            borderColor: '#48bb78',
+                            backgroundColor: 'rgba(72, 187, 120, 0.1)',
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Revenue vs Goal Chart
+            if (charts.goal) charts.goal.destroy();
+            const goalCtx = document.getElementById('goalChart');
+            if (goalCtx) {
+                charts.goal = new Chart(goalCtx.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Actual Revenue',
+                            data: revenues,
+                            backgroundColor: '#667eea'
+                        }, {
+                            label: 'Goal',
+                            data: goals,
+                            backgroundColor: '#ffc107'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Margin Trend Chart
+            if (charts.margin) charts.margin.destroy();
+            const marginCtx = document.getElementById('marginChart');
+            if (marginCtx) {
+                charts.margin = new Chart(marginCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Gross Margin %',
+                            data: margins,
+                            borderColor: '#38c172',
+                            backgroundColor: 'rgba(56, 193, 114, 0.1)',
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value + '%';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Cost Analysis Chart
+            if (charts.cost) charts.cost.destroy();
+            const costCtx = document.getElementById('costChart');
+            if (costCtx) {
+                charts.cost = new Chart(costCtx.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Revenue',
+                            data: revenues,
+                            backgroundColor: '#667eea'
+                        }, {
+                            label: 'Costs',
+                            data: costs,
+                            backgroundColor: '#e53e3e'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' }
+                        },
+                        scales: {
+                            x: { stacked: false },
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
         function sortTable(column) {
             // Update sort direction
             if (currentSort.column === column) {
@@ -601,6 +1271,7 @@
         function updateMonthInfo() {
             const month = document.getElementById('monthSelector').value;
             const monthInfo = document.getElementById('monthInfo');
+            if (!monthInfo) return;
             
             const activeCount = monthlyPayments.filter(p => p.clients?.status !== 'paused').length;
             const pausedCount = monthlyPayments.filter(p => p.clients?.status === 'paused').length;
@@ -632,8 +1303,135 @@
                     .eq('id', payment.id);
                 
                 await loadPayments();
+                await recalculateMonthlyData(month);
             } catch (error) {
                 console.error('Error updating payment:', error);
+                updateSyncStatus('error');
+            }
+        }
+        
+        async function recalculateMonthlyData(month) {
+            // Calculate total revenue for the month
+            let totalRevenue = 0;
+            
+            monthlyPayments.forEach(payment => {
+                if (payment.clients && payment.clients.status !== 'paused' && payment.status === 'paid') {
+                    totalRevenue += parseFloat(payment.clients.amount);
+                }
+            });
+            
+            // Get existing monthly data
+            const { data: existing } = await supabase
+                .from('monthly_data')
+                .select('*')
+                .eq('month', month)
+                .single();
+            
+            const costs = existing ? parseFloat(existing.costs) || 0 : 0;
+            const opIncome = totalRevenue - costs;
+            const margin = totalRevenue > 0 ? (opIncome / totalRevenue * 100) : 0;
+            const goal = existing ? parseFloat(existing.goal) || 0 : 18000;
+            
+            if (existing) {
+                await supabase
+                    .from('monthly_data')
+                    .update({
+                        revenue: totalRevenue,
+                        op_income: opIncome,
+                        margin: margin
+                    })
+                    .eq('month', month);
+            } else {
+                await supabase
+                    .from('monthly_data')
+                    .insert({
+                        month: month,
+                        revenue: totalRevenue,
+                        op_income: opIncome,
+                        costs: costs,
+                        margin: margin,
+                        goal: goal
+                    });
+            }
+            
+            await loadAnalytics();
+        }
+        
+        async function quickUpdateCosts() {
+            const month = document.getElementById('costMonth').value;
+            const costs = parseFloat(document.getElementById('quickCostAmount').value) || 0;
+            
+            if (!month || costs < 0) {
+                alert('Please enter valid month and cost amount');
+                return;
+            }
+            
+            updateSyncStatus('syncing');
+            try {
+                // Calculate revenue for the month
+                let totalRevenue = 0;
+                
+                // Get payments for this month
+                const { data: monthPayments } = await supabase
+                    .from('monthly_payments')
+                    .select(`
+                        *,
+                        clients (
+                            amount,
+                            status
+                        )
+                    `)
+                    .eq('month', month);
+                
+                monthPayments.forEach(payment => {
+                    if (payment.clients && payment.clients.status !== 'paused' && payment.status === 'paid') {
+                        totalRevenue += parseFloat(payment.clients.amount);
+                    }
+                });
+                
+                const opIncome = totalRevenue - costs;
+                const margin = totalRevenue > 0 ? (opIncome / totalRevenue * 100) : 0;
+                
+                // Check if record exists
+                const { data: existing } = await supabase
+                    .from('monthly_data')
+                    .select('*')
+                    .eq('month', month)
+                    .single();
+                
+                if (existing) {
+                    await supabase
+                        .from('monthly_data')
+                        .update({
+                            costs: costs,
+                            op_income: opIncome,
+                            margin: margin,
+                            revenue: totalRevenue
+                        })
+                        .eq('month', month);
+                } else {
+                    await supabase
+                        .from('monthly_data')
+                        .insert({
+                            month: month,
+                            revenue: totalRevenue,
+                            costs: costs,
+                            op_income: opIncome,
+                            margin: margin,
+                            goal: 18000
+                        });
+                }
+                
+                alert(`Costs updated for ${month}`);
+                document.getElementById('quickCostAmount').value = '';
+                
+                await loadCosts();
+                await loadAnalytics();
+                updateMetrics();
+                
+            } catch (error) {
+                console.error('Error updating costs:', error);
+                alert('Error updating costs: ' + error.message);
                 updateSyncStatus('error');
             }
         }
@@ -656,6 +1454,7 @@
                 }
                 
                 await loadPayments();
+                await recalculateMonthlyData(month);
             } catch (error) {
                 console.error('Error marking all paid:', error);
                 updateSyncStatus('error');
@@ -687,6 +1486,8 @@
         
         function updateSyncStatus(status) {
             const statusEl = document.getElementById('syncStatus');
+            if (!statusEl) return;
+            
             statusEl.className = 'sync-status ' + (status === 'syncing' ? 'syncing' : status === 'error' ? 'error' : '');
             statusEl.innerHTML = `
                 <span class="sync-dot">●</span>
@@ -700,11 +1501,20 @@
             
             event.target.classList.add('active');
             document.getElementById(tabName).classList.add('active');
+            
+            if (tabName === 'analytics') {
+                loadAnalytics();
+            } else if (tabName === 'clients') {
+                loadClients();
+            } else if (tabName === 'costs') {
+                loadCosts();
+            }
         }
         
         async function refreshData() {
             await loadClients();
             await loadPayments();
+            await loadAnalytics();
         }
         
         function generatePendingList() {
@@ -750,6 +1560,87 @@
                 await loadPayments();
             } catch (error) {
                 console.error('Error updating notes:', error);
+                updateSyncStatus('error');
+            }
+        }
+        
+        function editClient(clientId) {
+            alert('Edit client functionality coming soon. For now, edit in Supabase Table Editor.');
+        }
+        
+        function editCost(month, revenue, costs) {
+            const newCosts = prompt(`Enter costs for ${month}:`, costs);
+            if (newCosts === null) return;
+            
+            const costAmount = parseFloat(newCosts) || 0;
+            document.getElementById('costMonth').value = month;
+            document.getElementById('quickCostAmount').value = costAmount;
+            quickUpdateCosts();
+        }
+        
+        function exportAnalytics() {
+            const table = document.getElementById('analyticsTable');
+            const rows = table.querySelectorAll('tr');
+            
+            let csv = [];
+            for (let row of rows) {
+                const cols = row.querySelectorAll('td, th');
+                const csvRow = [];
+                for (let col of cols) {
+                    csvRow.push('"' + col.innerText.replace(/"/g, '""') + '"');
+                }
+                csv.push(csvRow.join(','));
+            }
+            
+            const csvContent = csv.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `analytics_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+        }
+        
+        function showAddClientModal() {
+            document.getElementById('clientModal').classList.add('active');
+            document.getElementById('clientStartDate').value = new Date().toISOString().split('T')[0];
+        }
+        
+        function closeClientModal() {
+            document.getElementById('clientModal').classList.remove('active');
+            document.getElementById('clientForm').reset();
+        }
+        
+        async function submitClient(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('clientName').value;
+            const amount = parseFloat(document.getElementById('clientAmount').value);
+            const status = document.getElementById('clientStatus').value;
+            const startDate = document.getElementById('clientStartDate').value;
+            
+            updateSyncStatus('syncing');
+            try {
+                const { data, error } = await supabase
+                    .from('clients')
+                    .insert({
+                        name: name,
+                        amount: amount,
+                        status: status,
+                        start_date: startDate
+                    })
+                    .select();
+                
+                if (error) throw error;
+                
+                closeClientModal();
+                await loadClients();
+                
+                alert(`Client "${name}" added successfully!`);
+                
+            } catch (error) {
+                console.error('Error adding client:', error);
+                alert('Error adding client: ' + error.message);
                 updateSyncStatus('error');
             }
         }
