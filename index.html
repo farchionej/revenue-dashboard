@@ -271,6 +271,15 @@
             display: inline-block;
         }
         
+        .status-hidden {
+            background: #ff9800;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            display: inline-block;
+        }
+        
         .loading {
             text-align: center;
             padding: 40px;
@@ -528,6 +537,14 @@
                 <button onclick="loadClients()">↻ Refresh</button>
             </div>
             
+            <div class="filter-controls">
+                <span>Quick Filters:</span>
+                <button class="filter-btn" onclick="filterClients('all')">All</button>
+                <button class="filter-btn" onclick="filterClients('active')">Active Only</button>
+                <button class="filter-btn" onclick="filterClients('paused')">Paused Only</button>
+                <button class="filter-btn" onclick="filterClients('hidden')">Hidden Only</button>
+            </div>
+            
             <div class="table-container">
                 <table id="clientsTable">
                     <thead>
@@ -703,6 +720,7 @@
         let charts = {};
         let currentSort = { column: null, direction: 'asc' };
         let currentFilter = 'all';
+        let currentClientFilter = 'all';
         
         // Initialize Supabase connection
         window.onload = function() {
@@ -755,6 +773,7 @@
             updateSyncStatus('syncing');
             try {
                 // Get ONLY the payments that exist for this specific month
+                // Exclude hidden clients from payment tracking
                 const { data: paymentData, error } = await supabase
                     .from('monthly_payments')
                     .select(`
@@ -766,12 +785,15 @@
                             status
                         )
                     `)
-                    .eq('month', month);
+                    .eq('month', month)
+                    .not('clients.status', 'eq', 'hidden');
                 
                 if (error) throw error;
                 
-                // Store the payment data
-                monthlyPayments = paymentData || [];
+                // Filter out any payments where the client is hidden
+                monthlyPayments = (paymentData || []).filter(payment => 
+                    payment.clients && payment.clients.status !== 'hidden'
+                );
                 
                 // Create payments lookup
                 payments = {};
@@ -836,24 +858,80 @@
             
             tbody.innerHTML = '';
             
-            clients.forEach(client => {
+            // Filter clients based on currentClientFilter
+            let displayClients = [...clients];
+            if (currentClientFilter !== 'all') {
+                displayClients = displayClients.filter(client => client.status === currentClientFilter);
+            }
+            
+            displayClients.forEach(client => {
                 // Calculate lifetime value (simplified)
                 const monthsSinceStart = Math.max(1, Math.floor((new Date() - new Date(client.start_date)) / (30 * 24 * 60 * 60 * 1000)));
-                const lifetimeValue = client.status === 'active' ? (parseFloat(client.amount) * monthsSinceStart) : 0;
+                const lifetimeValue = (client.status === 'active' || client.status === 'hidden') ? (parseFloat(client.amount) * monthsSinceStart) : 0;
                 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${client.name}</strong></td>
-                    <td>$${parseFloat(client.amount).toLocaleString()}</td>
+                    <td>${parseFloat(client.amount).toLocaleString()}</td>
                     <td><span class="status-${client.status}">${client.status}</span></td>
                     <td>${client.start_date}</td>
-                    <td>$${lifetimeValue.toLocaleString()}</td>
+                    <td>${lifetimeValue.toLocaleString()}</td>
                     <td>
+                        <button onclick="toggleClientStatus(${client.id}, '${client.status}')">Change Status</button>
                         <button onclick="editClient(${client.id})">Edit</button>
                     </td>
                 `;
                 tbody.appendChild(row);
             });
+        }
+        
+        function filterClients(filter) {
+            currentClientFilter = filter;
+            
+            // Update button styles
+            const buttons = document.querySelectorAll('#clients .filter-btn');
+            buttons.forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            displayClients();
+        }
+        
+        async function toggleClientStatus(clientId, currentStatus) {
+            // Cycle through statuses: active -> paused -> hidden -> active
+            let newStatus;
+            if (currentStatus === 'active') {
+                newStatus = 'paused';
+            } else if (currentStatus === 'paused') {
+                newStatus = 'hidden';
+            } else {
+                newStatus = 'active';
+            }
+            
+            const confirmMsg = newStatus === 'hidden' 
+                ? 'This will hide the client from future payment tracking. Continue?' 
+                : `Change status to ${newStatus}?`;
+            
+            if (!confirm(confirmMsg)) return;
+            
+            updateSyncStatus('syncing');
+            try {
+                const { error } = await supabase
+                    .from('clients')
+                    .update({ status: newStatus })
+                    .eq('id', clientId);
+                
+                if (error) throw error;
+                
+                await loadClients();
+                alert(`Client status updated to ${newStatus}`);
+                
+            } catch (error) {
+                console.error('Error updating client status:', error);
+                alert('Error updating client status: ' + error.message);
+                updateSyncStatus('error');
+            }
         }
         
         function displayPayments() {
@@ -1273,7 +1351,7 @@
             const monthInfo = document.getElementById('monthInfo');
             if (!monthInfo) return;
             
-            const activeCount = monthlyPayments.filter(p => p.clients?.status !== 'paused').length;
+            const activeCount = monthlyPayments.filter(p => p.clients?.status === 'active').length;
             const pausedCount = monthlyPayments.filter(p => p.clients?.status === 'paused').length;
             
             const [year, monthNum] = month.split('-');
@@ -1519,7 +1597,7 @@
         
         function generatePendingList() {
             const unpaidClients = monthlyPayments.filter(p => 
-                p.status !== 'paid' && p.clients?.status !== 'paused'
+                p.status !== 'paid' && p.clients?.status === 'active'
             );
             
             if (unpaidClients.length === 0) {
@@ -1534,12 +1612,12 @@
             unpaidClients.forEach(payment => {
                 if (payment.clients) {
                     const amount = parseFloat(payment.clients.amount);
-                    message += `• ${payment.clients.name}: $${amount.toLocaleString()}\n`;
+                    message += `• ${payment.clients.name}: ${amount.toLocaleString()}\n`;
                     total += amount;
                 }
             });
             
-            message += `\nTotal Outstanding: $${total.toLocaleString()}`;
+            message += `\nTotal Outstanding: ${total.toLocaleString()}`;
             alert(message);
         }
         
