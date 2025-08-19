@@ -120,8 +120,24 @@
             position: relative;
         }
         
+        .tab:hover {
+            background: #000000;
+            color: #ffffff;
+            border-radius: 8px;
+        }
+        
         .tab.active {
             color: #000000;
+            background: none;
+        }
+        
+        .tab.active:hover {
+            background: #000000;
+            color: #ffffff;
+        }
+        
+        .tab.active:hover::after {
+            display: none;
         }
         
         .tab.active::after {
