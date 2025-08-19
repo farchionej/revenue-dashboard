@@ -372,22 +372,37 @@
         .filter-btn {
             padding: 8px 16px;
             background: #f5f5f7;
+            color: #000000;
             border: 1px solid #e5e5e7;
             border-radius: 8px;
             cursor: pointer;
             font-size: 0.9em;
             font-weight: 500;
             transition: all 0.2s ease;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
         
         .filter-btn:hover {
-            background: #e8e8ed;
+            background: #000000;
+            color: #ffffff;
+            border-color: #000000;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .filter-btn:active {
+            transform: translateY(0);
         }
         
         .filter-btn.active {
             background: #000000;
             color: white;
             border-color: #000000;
+        }
+        
+        .filter-btn.active:hover {
+            background: #333333;
+            border-color: #333333;
         }
         
         .month-info {
@@ -702,7 +717,7 @@
             
             <div class="filter-controls">
                 <span style="font-weight: 500; margin-right: 10px;">Quick Filters:</span>
-                <button class="filter-btn" onclick="filterByStatus('all')">All</button>
+                <button class="filter-btn active" onclick="filterByStatus('all')">All</button>
                 <button class="filter-btn" onclick="filterByStatus('paid')">Paid Only</button>
                 <button class="filter-btn" onclick="filterByStatus('unpaid')">Unpaid Only</button>
                 <button class="filter-btn" onclick="filterByStatus('paused')">Paused Only</button>
@@ -1933,10 +1948,14 @@
             currentFilter = status;
             
             // Update button styles
-            document.querySelectorAll('.filter-btn').forEach(btn => {
+            document.querySelectorAll('#payments .filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            event.target.classList.add('active');
+            
+            // Add active class to clicked button
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
             
             displayPayments();
         }
