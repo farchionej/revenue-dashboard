@@ -599,6 +599,7 @@
             font-weight: 500;
             background: #fafafa;
             justify-content: flex-start;
+            color: #000000;
         }
         
         .payment-cell.paid {
@@ -624,26 +625,15 @@
         }
         
         .payment-cell.multiple-behind {
-            animation: pulse 2s infinite;
-            border: 2px solid #c62828;
+            outline: 1px solid #c62828;
+            outline-offset: -1px;
         }
         
-        @keyframes pulse {
-            0% {
-                box-shadow: 0 0 0 0 rgba(198, 40, 40, 0.4);
-            }
-            70% {
-                box-shadow: 0 0 0 6px rgba(198, 40, 40, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(198, 40, 40, 0);
-            }
-        }
-        
-        .unpaid-streak {
+        .unpaid-count {
             font-size: 0.75em;
-            margin-top: 2px;
-            font-weight: bold;
+            margin-left: 8px;
+            color: #86868b;
+            font-weight: normal;
         }
     </style>
 </head>
@@ -730,10 +720,19 @@
             <!-- Payment History Visual -->
             <div class="payment-history-section" style="margin-top: 40px;">
                 <h3 style="margin-bottom: 20px; font-weight: 600; color: #000000;">YTD Payment History</h3>
+                <div class="payment-history-controls" style="margin-bottom: 20px;">
+                    <select id="unpaidMonthFilter" onchange="filterPaymentHistory()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #e5e5e7;">
+                        <option value="">All Clients</option>
+                        <option value="unpaid-current">Unpaid This Month</option>
+                        <option value="unpaid-any">Has Any Unpaid</option>
+                        <option value="unpaid-multiple">Multiple Unpaid (2+)</option>
+                    </select>
+                    <button onclick="exportPaymentHistory()" class="btn-secondary" style="margin-left: 10px;">Export Grid</button>
+                </div>
                 <div class="payment-history-legend">
                     <span class="legend-item"><span class="legend-color paid"></span> Paid</span>
                     <span class="legend-item"><span class="legend-color unpaid"></span> Unpaid</span>
-                    <span class="legend-item"><span class="legend-color paused"></span> Paused/Inactive</span>
+                    <span class="legend-item"><span class="legend-color paused"></span> Paused</span>
                     <span class="legend-item"><span class="legend-color not-client"></span> Not Yet Client</span>
                 </div>
                 <div class="payment-history-container">
@@ -1318,14 +1317,19 @@
             
             // Create rows for each client
             activeClients.forEach(client => {
+                let unpaidCount = 0;
+                let rowCells = [];
+                
+                // Skip clients that are currently paused and we have 4+ months of data
+                // (Assuming if they're paused now and we have 4+ months, they've been paused long enough)
+                if (client.status === 'paused' && months.length >= 4) {
+                    return; // Skip this client entirely from the visual
+                }
+                
                 // Client name cell
                 const nameCell = document.createElement('div');
                 nameCell.className = 'payment-cell client-name';
-                nameCell.textContent = client.name;
-                gridContainer.appendChild(nameCell);
-                
-                let unpaidStreak = 0;
-                let hasMultipleUnpaid = false;
+                rowCells.push(nameCell);
                 
                 // Check each month for this client
                 months.forEach(month => {
@@ -1349,13 +1353,11 @@
                             if (payment.status === 'paid') {
                                 cell.classList.add('paid');
                                 cell.textContent = '✓';
-                                unpaidStreak = 0;
                             } else {
                                 cell.classList.add('unpaid');
                                 cell.textContent = '✗';
-                                unpaidStreak++;
-                                if (unpaidStreak >= 2) {
-                                    hasMultipleUnpaid = true;
+                                unpaidCount++;
+                                if (unpaidCount >= 2) {
                                     cell.classList.add('multiple-behind');
                                 }
                             }
@@ -1363,24 +1365,106 @@
                             // No payment record exists for this month
                             cell.classList.add('unpaid');
                             cell.textContent = '✗';
-                            unpaidStreak++;
-                            if (unpaidStreak >= 2) {
-                                hasMultipleUnpaid = true;
+                            unpaidCount++;
+                            if (unpaidCount >= 2) {
                                 cell.classList.add('multiple-behind');
                             }
                         }
                     }
                     
-                    gridContainer.appendChild(cell);
+                    rowCells.push(cell);
                 });
                 
-                // Highlight client name if they have multiple unpaid
-                if (hasMultipleUnpaid && unpaidStreak > 0) {
-                    nameCell.style.background = '#ffebee';
-                    nameCell.style.color = '#c62828';
-                    nameCell.innerHTML = `${client.name} <span class="unpaid-streak">(${unpaidStreak} behind)</span>`;
+                // Set client name with unpaid count if applicable
+                if (unpaidCount > 0) {
+                    nameCell.innerHTML = `${client.name} <span class="unpaid-count">(${unpaidCount} unpaid)</span>`;
+                } else {
+                    nameCell.textContent = client.name;
                 }
+                
+                // Add all cells to the grid with proper data attributes
+                rowCells.forEach((cell, index) => {
+                    if (index === 0) {
+                        // Name cell gets the client ID
+                        cell.setAttribute('data-client-id', client.id);
+                        cell.setAttribute('data-row-type', 'name');
+                    } else {
+                        // Other cells get client ID for filtering
+                        cell.setAttribute('data-client-id', client.id);
+                        cell.setAttribute('data-row-type', 'data');
+                    }
+                    gridContainer.appendChild(cell);
+                });
             });
+        }
+        
+        function filterPaymentHistory() {
+            const filter = document.getElementById('unpaidMonthFilter').value;
+            const gridContainer = document.getElementById('paymentHistoryGrid');
+            const clients = [...new Set(Array.from(gridContainer.querySelectorAll('[data-client-id]')).map(el => el.getAttribute('data-client-id')))];
+            
+            clients.forEach(clientId => {
+                const cells = gridContainer.querySelectorAll(`[data-client-id="${clientId}"]`);
+                const nameCell = gridContainer.querySelector(`[data-client-id="${clientId}"][data-row-type="name"]`);
+                
+                if (!nameCell) return;
+                
+                let shouldShow = true;
+                
+                switch(filter) {
+                    case 'unpaid-current':
+                        // Check if the last data cell is unpaid
+                        const lastCell = cells[cells.length - 1];
+                        shouldShow = lastCell && lastCell.classList.contains('unpaid');
+                        break;
+                    case 'unpaid-any':
+                        // Check if any cell is unpaid
+                        shouldShow = Array.from(cells).some(cell => cell.classList.contains('unpaid'));
+                        break;
+                    case 'unpaid-multiple':
+                        // Count unpaid cells
+                        const unpaidCount = Array.from(cells).filter(cell => cell.classList.contains('unpaid')).length;
+                        shouldShow = unpaidCount >= 2;
+                        break;
+                    default:
+                        shouldShow = true;
+                }
+                
+                // Show or hide all cells for this client
+                cells.forEach(cell => {
+                    cell.style.display = shouldShow ? '' : 'none';
+                });
+            });
+        }
+        
+        function exportPaymentHistory() {
+            const gridContainer = document.getElementById('paymentHistoryGrid');
+            const headers = Array.from(gridContainer.querySelectorAll('.payment-cell.header')).map(cell => cell.textContent);
+            
+            // Get unique client IDs from visible cells
+            const visibleClients = [...new Set(Array.from(gridContainer.querySelectorAll('[data-client-id]:not([style*="display: none"])')).map(el => el.getAttribute('data-client-id')))];
+            
+            let csv = headers.join(',') + '\n';
+            
+            visibleClients.forEach(clientId => {
+                const cells = gridContainer.querySelectorAll(`[data-client-id="${clientId}"]:not([style*="display: none"])`);
+                const rowData = Array.from(cells).map(cell => {
+                    if (cell.classList.contains('paid')) return 'Paid';
+                    if (cell.classList.contains('unpaid')) return 'Unpaid';
+                    if (cell.classList.contains('paused')) return 'Paused';
+                    if (cell.classList.contains('not-client')) return 'Not Client';
+                    return cell.textContent.replace(/\([^)]*\)/g, '').trim(); // Remove count from name
+                });
+                csv += rowData.map(cell => `"${cell}"`).join(',') + '\n';
+            });
+            
+            // Download CSV
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `payment_history_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
         }
         
         function displayCosts(data) {
