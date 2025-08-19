@@ -315,6 +315,13 @@
             font-size: 0.85em;
             font-weight: 500;
             display: inline-block;
+            transition: all 0.2s ease;
+        }
+        
+        .status-active:hover {
+            background: #2e7d32;
+            color: white;
+            transform: scale(1.05);
         }
         
         .status-hidden {
@@ -325,6 +332,13 @@
             font-size: 0.85em;
             font-weight: 500;
             display: inline-block;
+            transition: all 0.2s ease;
+        }
+        
+        .status-hidden:hover {
+            background: #856404;
+            color: white;
+            transform: scale(1.05);
         }
         
         .loading {
@@ -720,14 +734,19 @@
             <!-- Payment History Visual -->
             <div class="payment-history-section" style="margin-top: 40px;">
                 <h3 style="margin-bottom: 20px; font-weight: 600; color: #000000;">YTD Payment History</h3>
-                <div class="payment-history-controls" style="margin-bottom: 20px;">
+                <p style="font-size: 0.85em; color: #86868b; margin-bottom: 15px;">
+                    If you notice missing payment records, click "Sync Database" to create them automatically.
+                </p>
+                <div class="payment-history-controls" style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
                     <select id="unpaidMonthFilter" onchange="filterPaymentHistory()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #e5e5e7;">
                         <option value="">All Clients</option>
                         <option value="unpaid-current">Unpaid This Month</option>
                         <option value="unpaid-any">Has Any Unpaid</option>
                         <option value="unpaid-multiple">Multiple Unpaid (2+)</option>
                     </select>
-                    <button onclick="exportPaymentHistory()" class="btn-secondary" style="margin-left: 10px;">Export Grid</button>
+                    <button onclick="exportPaymentHistory()" class="btn-secondary">Export Grid</button>
+                    <button onclick="syncPaymentDatabase()" style="background: #2e7d32;" title="Create missing payment records for all active clients">🔄 Sync Database</button>
+                    <span id="syncMessage" style="display: none; color: #2e7d32; font-size: 0.9em;"></span>
                 </div>
                 <div class="payment-history-legend">
                     <span class="legend-item"><span class="legend-color paid"></span> Paid</span>
@@ -985,6 +1004,8 @@
             
             updateSyncStatus('syncing');
             try {
+                // Note: Use the "Sync Database" button to create missing payment records
+                
                 // Get ONLY the payments that exist for this specific month
                 // Exclude hidden clients from payment tracking
                 const { data: paymentData, error } = await supabase
@@ -1254,6 +1275,10 @@
                 });
             }
             
+            // First, ensure all active clients have payment records for each month
+            // Commented out - use the "Sync Database" button instead to avoid confusion
+            // await ensurePaymentRecordsExist(activeClients, months);
+            
             // Load payment data for all YTD months
             const paymentData = {};
             
@@ -1349,20 +1374,11 @@
                     } else {
                         const payment = paymentData[client.id]?.[month.value];
                         
-                        if (payment) {
-                            if (payment.status === 'paid') {
-                                cell.classList.add('paid');
-                                cell.textContent = '✓';
-                            } else {
-                                cell.classList.add('unpaid');
-                                cell.textContent = '✗';
-                                unpaidCount++;
-                                if (unpaidCount >= 2) {
-                                    cell.classList.add('multiple-behind');
-                                }
-                            }
+                        if (payment && payment.status === 'paid') {
+                            cell.classList.add('paid');
+                            cell.textContent = '✓';
                         } else {
-                            // No payment record exists for this month
+                            // Either no payment record or unpaid
                             cell.classList.add('unpaid');
                             cell.textContent = '✗';
                             unpaidCount++;
@@ -1396,6 +1412,13 @@
                     gridContainer.appendChild(cell);
                 });
             });
+        }
+        
+        async function ensurePaymentRecordsExist(clients, months) {
+            // This function creates missing payment records for active clients only
+            // Skip this in the payment history load to avoid duplicating the sync functionality
+            // This is now primarily handled by the Sync Database button
+            return;
         }
         
         function filterPaymentHistory() {
@@ -1465,6 +1488,133 @@
             a.href = url;
             a.download = `payment_history_${new Date().toISOString().split('T')[0]}.csv`;
             a.click();
+        }
+        
+        async function syncPaymentDatabase() {
+            if (!confirm('This will create missing payment records for all active clients. Continue?')) {
+                return;
+            }
+            
+            const syncMessage = document.getElementById('syncMessage');
+            if (syncMessage) {
+                syncMessage.style.display = 'inline';
+                syncMessage.textContent = 'Syncing database...';
+            }
+            
+            updateSyncStatus('syncing');
+            
+            try {
+                const currentYear = new Date().getFullYear();
+                const currentMonth = new Date().getMonth() + 1;
+                
+                // Get all active clients (not hidden)
+                const activeClients = clients.filter(c => c.status !== 'hidden');
+                
+                // Generate month list for YTD
+                const months = [];
+                for (let i = 1; i <= currentMonth; i++) {
+                    const monthStr = `${currentYear}-${String(i).padStart(2, '0')}`;
+                    months.push(monthStr);
+                }
+                
+                let recordsCreated = 0;
+                let recordsProcessed = 0;
+                
+                for (const client of activeClients) {
+                    // Skip paused clients for older months
+                    if (client.status === 'paused') continue;
+                    
+                    const clientStartDate = new Date(client.start_date);
+                    
+                    for (const month of months) {
+                        const monthDate = new Date(month + '-01');
+                        
+                        // Only process months after client started
+                        if (monthDate >= clientStartDate) {
+                            recordsProcessed++;
+                            
+                            try {
+                                // Check if payment record exists
+                                const { data: existing, error: checkError } = await supabase
+                                    .from('monthly_payments')
+                                    .select('*')
+                                    .eq('client_id', client.id)
+                                    .eq('month', month)
+                                    .single();
+                                
+                                if (checkError || !existing) {
+                                    // No record exists, create one
+                                    const { error: insertError } = await supabase
+                                        .from('monthly_payments')
+                                        .insert({
+                                            client_id: client.id,
+                                            month: month,
+                                            status: 'unpaid',
+                                            payment_date: null,
+                                            notes: null
+                                        });
+                                    
+                                    if (!insertError) {
+                                        recordsCreated++;
+                                        console.log(`Created payment record for ${client.name} - ${month}`);
+                                    }
+                                }
+                            } catch (error) {
+                                // Try to create the record
+                                try {
+                                    const { error: insertError } = await supabase
+                                        .from('monthly_payments')
+                                        .insert({
+                                            client_id: client.id,
+                                            month: month,
+                                            status: 'unpaid',
+                                            payment_date: null,
+                                            notes: null
+                                        });
+                                    
+                                    if (!insertError) {
+                                        recordsCreated++;
+                                        console.log(`Created payment record for ${client.name} - ${month}`);
+                                    }
+                                } catch (insertErr) {
+                                    console.log(`Record likely exists for ${client.name} - ${month}`);
+                                }
+                            }
+                            
+                            // Update sync message
+                            if (syncMessage && recordsProcessed % 10 === 0) {
+                                syncMessage.textContent = `Processing... (${recordsProcessed} checked, ${recordsCreated} created)`;
+                            }
+                        }
+                    }
+                }
+                
+                if (syncMessage) {
+                    syncMessage.textContent = `✓ Sync complete! ${recordsCreated} records created.`;
+                    setTimeout(() => {
+                        syncMessage.style.display = 'none';
+                    }, 5000);
+                }
+                
+                alert(`Database sync complete!\n\nRecords processed: ${recordsProcessed}\nNew records created: ${recordsCreated}`);
+                
+                // Reload all data to reflect changes
+                await loadPayments();
+                await loadAnalytics();
+                
+                updateSyncStatus('connected');
+                
+            } catch (error) {
+                console.error('Error syncing database:', error);
+                alert('Error syncing database: ' + error.message);
+                
+                if (syncMessage) {
+                    syncMessage.textContent = '✗ Sync failed';
+                    syncMessage.style.color = '#c62828';
+                }
+                
+                updateSyncStatus('error');
+            }
         }
         
         function displayCosts(data) {
