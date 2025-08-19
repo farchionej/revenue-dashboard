@@ -2,71 +2,69 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Revenue Dashboard - Complete</title>
+    <title>Jay Street Media Revenue</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-       * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
         
-       body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: #fafafa;  /* Clean light gray instead of gradient */
-    min-height: 100vh;
-    padding: 20px;
-    color: #1a1a1a;
-}
-
-.dashboard {
-    max-width: 1400px;
-    margin: 0 auto;
-    background: #ffffff;
-    border-radius: 16px;  /* Softer radius */
-    padding: 40px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);  /* Much subtler shadow */
-}
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #fafafa;
+            min-height: 100vh;
+            padding: 20px;
+            color: #1a1a1a;
+        }
         
-       h1 {
-    color: #000000;
-    margin-bottom: 40px;
-    font-size: 2.25em;
-    font-weight: 600;
-    letter-spacing: -0.02em;  /* Tighter letter spacing like Apple */
-    background: none;
-    -webkit-text-fill-color: inherit;
-}
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+        }
+        
+        h1 {
+            color: #000000;
+            margin-bottom: 40px;
+            font-size: 2.25em;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
         
         .sync-status {
-    position: absolute;
-    top: 30px;
-    right: 30px;
-    padding: 8px 16px;
-    background: #e8f5e9;
-    color: #2e7d32;
-    border-radius: 8px;
-    font-size: 0.85em;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.sync-status.syncing {
-    background: #fff8e1;
-    color: #f57c00;
-}
-
-.sync-status.error {
-    background: #ffebee;
-    color: #c62828;
-}
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            padding: 8px 16px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 8px;
+            font-size: 0.85em;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .sync-status.syncing {
+            background: #fff8e1;
+            color: #f57c00;
+        }
+        
+        .sync-status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
         
         .metrics-grid {
             display: grid;
@@ -76,66 +74,65 @@
         }
         
         .metric-card {
-    background: #ffffff;
-    border: 1px solid #e5e5e7;  /* Apple-style border */
-    border-radius: 12px;
-    padding: 24px;
-    color: #1a1a1a;
-    box-shadow: none;  /* Remove shadow for cleaner look */
-    transition: all 0.2s ease;
-}
-
-.metric-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-.metric-label {
-    font-size: 0.875em;
-    color: #86868b;  /* Apple gray */
-    margin-bottom: 8px;
-    font-weight: 500;
-}
-
-.metric-value {
-    font-size: 2.25em;
-    font-weight: 600;
-    color: #000000;
-    letter-spacing: -0.02em;
-}
+            background: #ffffff;
+            border: 1px solid #e5e5e7;
+            border-radius: 12px;
+            padding: 24px;
+            color: #1a1a1a;
+            transition: all 0.2s ease;
+        }
         
-      .tabs {
-    display: flex;
-    gap: 0;
-    margin-bottom: 40px;
-    border-bottom: 1px solid #e5e5e7;
-}
-
-.tab {
-    padding: 12px 24px;
-    background: none;
-    border: none;
-    color: #86868b;
-    font-size: 0.95em;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    position: relative;
-}
-
-.tab.active {
-    color: #000000;
-}
-
-.tab.active::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: #000000;
-}
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        
+        .metric-label {
+            font-size: 0.875em;
+            color: #86868b;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .metric-value {
+            font-size: 2.25em;
+            font-weight: 600;
+            color: #000000;
+            letter-spacing: -0.02em;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 40px;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            color: #86868b;
+            font-size: 0.95em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .tab.active {
+            color: #000000;
+        }
+        
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #000000;
+        }
         
         .tab-content {
             display: none;
@@ -160,145 +157,169 @@
         }
         
         select, input {
-            padding: 8px 12px;
-            border: 2px solid #e0e0e0;
+            padding: 10px 14px;
+            border: 1px solid #e5e5e7;
             border-radius: 8px;
             font-size: 0.95em;
-            transition: border-color 0.3s ease;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            transition: all 0.2s ease;
+            background: #ffffff;
         }
         
-        select:focus, input:focus {
+        select:focus, input:focus, textarea:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #000000;
+            box-shadow: 0 0 0 3px rgba(0,0,0,0.1);
         }
         
         button {
-    padding: 10px 20px;
-    background: #000000;  /* Black primary buttons like Apple */
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 0.95em;
-    font-weight: 500;
-    transition: all 0.2s ease;
-}
-
-button:hover {
-    background: #1a1a1a;
-    transform: translateY(-1px);
-}
-
-/* Add secondary button style */
-.btn-secondary {
-    background: #f5f5f7;
-    color: #000000;
-}
-
-.btn-secondary:hover {
-    background: #e8e8ed;
-}
+            padding: 10px 20px;
+            background: #000000;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 500;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            transition: all 0.2s ease;
+        }
+        
+        button:hover {
+            background: #1a1a1a;
+            transform: translateY(-1px);
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-secondary {
+            background: #f5f5f7;
+            color: #000000;
+        }
+        
+        .btn-secondary:hover {
+            background: #e8e8ed;
+        }
+        
         .table-container {
-    overflow-x: auto;
-    margin-bottom: 30px;
-    border-radius: 12px;
-    border: 1px solid #e5e5e7;
-    box-shadow: none;
-}
-
-th {
-    background: #fafafa;
-    font-weight: 500;
-    color: #000000;
-    font-size: 0.875em;
-    text-transform: none;  /* Remove if you had uppercase */
-    letter-spacing: normal;
-}
-
-tr:hover {
-    background: #fafafa;
-}
+            overflow-x: auto;
+            margin-bottom: 30px;
+            border-radius: 12px;
+            border: 1px solid #e5e5e7;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        
+        th {
+            background: #fafafa;
+            font-weight: 500;
+            color: #000000;
+            font-size: 0.875em;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        th:hover {
+            background: #f0f0f0;
+        }
         
         th.sortable::after {
             content: ' ↕';
-            opacity: 0.4;
+            opacity: 0.3;
             font-size: 0.8em;
         }
         
         th.sorted-asc::after {
             content: ' ↑';
-            opacity: 1;
+            opacity: 0.8;
         }
         
         th.sorted-desc::after {
             content: ' ↓';
-            opacity: 1;
+            opacity: 0.8;
         }
         
         tr:hover {
-            background: #f9f9f9;
+            background: #fafafa;
         }
         
-      .status-paid {
-    background: #e8f5e9;
-    color: #2e7d32;
-    padding: 4px 12px;
-    border-radius: 6px;
-    font-size: 0.85em;
-    font-weight: 500;
-    cursor: pointer;
-    display: inline-block;
-}
-
-.status-unpaid {
-    background: #ffebee;
-    color: #c62828;
-    padding: 4px 12px;
-    border-radius: 6px;
-    font-size: 0.85em;
-    font-weight: 500;
-    cursor: pointer;
-    display: inline-block;
-}
-
-.status-paused {
-    background: #f5f5f7;
-    color: #86868b;
-    padding: 4px 12px;
-    border-radius: 6px;
-    font-size: 0.85em;
-    font-weight: 500;
-    cursor: pointer;
-    display: inline-block;
-}
+        .status-paid {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-block;
+        }
+        
+        .status-paused {
+            background: #f5f5f7;
+            color: #86868b;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-block;
+        }
+        
+        .status-unpaid {
+            background: #ffebee;
+            color: #c62828;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-block;
+        }
         
         .status-active {
-            background: #4caf50;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 4px 12px;
+            border-radius: 6px;
             font-size: 0.85em;
+            font-weight: 500;
             display: inline-block;
         }
         
         .status-hidden {
-            background: #ff9800;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
+            background: #fff3cd;
+            color: #856404;
+            padding: 4px 12px;
+            border-radius: 6px;
             font-size: 0.85em;
+            font-weight: 500;
             display: inline-block;
         }
         
         .loading {
             text-align: center;
             padding: 40px;
-            color: #666;
+            color: #86868b;
         }
         
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border: 3px solid #f5f5f7;
+            border-top: 3px solid #000000;
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -315,30 +336,37 @@ tr:hover {
             display: flex;
             gap: 10px;
             margin-bottom: 15px;
+            align-items: center;
         }
         
         .filter-btn {
-            padding: 6px 12px;
-            background: #f0f0f0;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            padding: 8px 16px;
+            background: #f5f5f7;
+            border: 1px solid #e5e5e7;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .filter-btn:hover {
+            background: #e8e8ed;
         }
         
         .filter-btn.active {
-            background: #667eea;
+            background: #000000;
             color: white;
-            border-color: #667eea;
+            border-color: #000000;
         }
         
         .month-info {
-            padding: 10px;
-            background: #f8f9fa;
+            padding: 14px 18px;
+            background: #f5f5f7;
             border-radius: 8px;
             margin-bottom: 20px;
             font-size: 0.95em;
-            color: #666;
+            color: #1a1a1a;
         }
         
         /* Chart Styles */
@@ -351,16 +379,16 @@ tr:hover {
         
         .chart-container {
             background: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border: 1px solid #e5e5e7;
+            border-radius: 12px;
+            padding: 24px;
         }
         
         .chart-title {
-            font-size: 1.2em;
+            font-size: 1.1em;
             font-weight: 600;
-            margin-bottom: 15px;
-            color: #333;
+            margin-bottom: 20px;
+            color: #000000;
         }
         
         .chart-wrapper {
@@ -374,9 +402,9 @@ tr:hover {
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin-bottom: 20px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 10px;
+            padding: 24px;
+            background: #f5f5f7;
+            border-radius: 12px;
         }
         
         .cost-item {
@@ -384,33 +412,37 @@ tr:hover {
         }
         
         .cost-label {
-            font-size: 0.9em;
-            color: #666;
-            margin-bottom: 5px;
+            font-size: 0.875em;
+            color: #86868b;
+            margin-bottom: 8px;
+            font-weight: 500;
         }
         
         .cost-value {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #333;
+            font-size: 1.75em;
+            font-weight: 600;
+            color: #000000;
+            letter-spacing: -0.02em;
         }
         
         .quick-cost-entry {
-            background: #f0f4f8;
-            border-radius: 10px;
-            padding: 20px;
+            background: #f5f5f7;
+            border-radius: 12px;
+            padding: 24px;
             margin-bottom: 20px;
         }
         
         .quick-cost-entry h3 {
-            margin-bottom: 15px;
-            color: #333;
+            margin-bottom: 18px;
+            color: #000000;
+            font-weight: 600;
+            font-size: 1.1em;
         }
         
         .cost-input-grid {
             display: grid;
             grid-template-columns: 2fr 1fr 1fr;
-            gap: 10px;
+            gap: 12px;
             align-items: end;
         }
         
@@ -421,7 +453,7 @@ tr:hover {
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.4);
             justify-content: center;
             align-items: center;
             z-index: 1000;
@@ -433,29 +465,38 @@ tr:hover {
         
         .modal-content {
             background: white;
-            border-radius: 15px;
-            padding: 30px;
+            border-radius: 16px;
+            padding: 32px;
             max-width: 500px;
             width: 90%;
             max-height: 80vh;
             overflow-y: auto;
         }
         
+        .modal-content h2 {
+            margin-bottom: 24px;
+            font-weight: 600;
+            color: #000000;
+        }
+        
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 18px;
         }
         
         .form-group label {
             display: block;
-            margin-bottom: 5px;
-            color: #666;
+            margin-bottom: 6px;
+            color: #000000;
+            font-size: 0.9em;
+            font-weight: 500;
         }
         
         .form-group input, .form-group select, .form-group textarea {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            padding: 10px 14px;
+            border: 1px solid #e5e5e7;
+            border-radius: 8px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
     </style>
 </head>
@@ -466,7 +507,7 @@ tr:hover {
             <span>Connected</span>
         </div>
         
-        <h1>📊 Revenue Dashboard</h1>
+        <h1>Jay Street Media Revenue</h1>
         
         <div class="metrics-grid">
             <div class="metric-card">
@@ -502,14 +543,14 @@ tr:hover {
                     <input type="month" id="monthSelector" value="2025-08" onchange="loadPayments()">
                 </div>
                 <button onclick="markAllPaid()">Mark All Paid</button>
-                <button onclick="generatePendingList()">Show Unpaid</button>
-                <button onclick="refreshData()" style="background: #28a745;">↻ Refresh</button>
+                <button onclick="generatePendingList()" class="btn-secondary">Show Unpaid</button>
+                <button onclick="refreshData()" style="background: #2e7d32;">↻ Refresh</button>
             </div>
             
             <div class="month-info" id="monthInfo"></div>
             
             <div class="filter-controls">
-                <span>Quick Filters:</span>
+                <span style="font-weight: 500; margin-right: 10px;">Quick Filters:</span>
                 <button class="filter-btn" onclick="filterByStatus('all')">All</button>
                 <button class="filter-btn" onclick="filterByStatus('paid')">Paid Only</button>
                 <button class="filter-btn" onclick="filterByStatus('unpaid')">Unpaid Only</button>
@@ -544,11 +585,11 @@ tr:hover {
         <div id="clients" class="tab-content">
             <div class="controls">
                 <button onclick="showAddClientModal()">+ Add Client</button>
-                <button onclick="loadClients()">↻ Refresh</button>
+                <button onclick="loadClients()" class="btn-secondary">↻ Refresh</button>
             </div>
             
             <div class="filter-controls">
-                <span>Quick Filters:</span>
+                <span style="font-weight: 500; margin-right: 10px;">Quick Filters:</span>
                 <button class="filter-btn" onclick="filterClients('all')">All</button>
                 <button class="filter-btn" onclick="filterClients('active')">Active Only</button>
                 <button class="filter-btn" onclick="filterClients('paused')">Paused Only</button>
@@ -631,7 +672,7 @@ tr:hover {
         <div id="analytics" class="tab-content">
             <div class="controls">
                 <button onclick="loadAnalytics()">↻ Refresh Analytics</button>
-                <button onclick="exportAnalytics()">Export to CSV</button>
+                <button onclick="exportAnalytics()" class="btn-secondary">Export to CSV</button>
                 <select id="chartTimeRange" onchange="updateCharts()">
                     <option value="all">All Time</option>
                     <option value="2025">2025 Only</option>
@@ -715,7 +756,7 @@ tr:hover {
                         <input type="date" id="clientStartDate" required>
                     </div>
                     <button type="submit">Add Client</button>
-                    <button type="button" onclick="closeClientModal()">Cancel</button>
+                    <button type="button" onclick="closeClientModal()" class="btn-secondary" style="margin-left: 10px;">Cancel</button>
                 </form>
             </div>
         </div>
@@ -882,13 +923,13 @@ tr:hover {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${client.name}</strong></td>
-                    <td>${parseFloat(client.amount).toLocaleString()}</td>
+                    <td>$${parseFloat(client.amount).toLocaleString()}</td>
                     <td><span class="status-${client.status}">${client.status}</span></td>
                     <td>${client.start_date}</td>
-                    <td>${lifetimeValue.toLocaleString()}</td>
+                    <td>$${lifetimeValue.toLocaleString()}</td>
                     <td>
-                        <button onclick="toggleClientStatus(${client.id}, '${client.status}')">Change Status</button>
-                        <button onclick="editClient(${client.id})">Edit</button>
+                        <button onclick="toggleClientStatus(${client.id}, '${client.status}')" class="btn-secondary">Change Status</button>
+                        <button onclick="editClient(${client.id})" class="btn-secondary">Edit</button>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -951,7 +992,7 @@ tr:hover {
             tbody.innerHTML = '';
             
             if (monthlyPayments.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666;">No payment records for this month</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #86868b;">No payment records for this month</td></tr>';
                 return;
             }
             
@@ -1007,9 +1048,9 @@ tr:hover {
                 
                 const row = document.createElement('tr');
                 if (status === 'paid') {
-                    row.style.backgroundColor = '#f0f9f0';
+                    row.style.backgroundColor = '#f9fdfb';
                 } else if (status === 'unpaid') {
-                    row.style.backgroundColor = '#fff5f5';
+                    row.style.backgroundColor = '#fffbfb';
                 }
                 
                 row.innerHTML = `
@@ -1025,7 +1066,7 @@ tr:hover {
                     <td>${payment.payment_date || '-'}</td>
                     <td>${payment.notes || '-'}</td>
                     <td>
-                        <button onclick="editNotes(${client.id})">Notes</button>
+                        <button onclick="editNotes(${client.id})" class="btn-secondary">Notes</button>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -1061,7 +1102,7 @@ tr:hover {
                     <td>$${opIncome.toLocaleString()}</td>
                     <td>${margin}%</td>
                     <td>
-                        <button onclick="editCost('${record.month}', ${revenue}, ${costs})">Edit</button>
+                        <button onclick="editCost('${record.month}', ${revenue}, ${costs})" class="btn-secondary">Edit</button>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -1087,7 +1128,7 @@ tr:hover {
                 const revenue = parseFloat(record.revenue) || 0;
                 const goal = parseFloat(record.goal) || 0;
                 const delta = revenue - goal;
-                const deltaColor = delta >= 0 ? 'green' : 'red';
+                const deltaColor = delta >= 0 ? '#2e7d32' : '#c62828';
                 const deltaText = delta >= 0 ? `+$${delta.toLocaleString()}` : `-$${Math.abs(delta).toLocaleString()}`;
                 
                 const [year, month] = record.month.split('-');
@@ -1176,14 +1217,14 @@ tr:hover {
                         datasets: [{
                             label: 'Revenue',
                             data: revenues,
-                            borderColor: '#667eea',
-                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderColor: '#000000',
+                            backgroundColor: 'rgba(0, 0, 0, 0.05)',
                             tension: 0.3
                         }, {
                             label: 'Operating Income',
                             data: opIncomes,
-                            borderColor: '#48bb78',
-                            backgroundColor: 'rgba(72, 187, 120, 0.1)',
+                            borderColor: '#2e7d32',
+                            backgroundColor: 'rgba(46, 125, 50, 0.1)',
                             tension: 0.3
                         }]
                     },
@@ -1218,11 +1259,11 @@ tr:hover {
                         datasets: [{
                             label: 'Actual Revenue',
                             data: revenues,
-                            backgroundColor: '#667eea'
+                            backgroundColor: '#000000'
                         }, {
                             label: 'Goal',
                             data: goals,
-                            backgroundColor: '#ffc107'
+                            backgroundColor: '#f57c00'
                         }]
                     },
                     options: {
@@ -1256,8 +1297,8 @@ tr:hover {
                         datasets: [{
                             label: 'Gross Margin %',
                             data: margins,
-                            borderColor: '#38c172',
-                            backgroundColor: 'rgba(56, 193, 114, 0.1)',
+                            borderColor: '#2e7d32',
+                            backgroundColor: 'rgba(46, 125, 50, 0.1)',
                             tension: 0.3
                         }]
                     },
@@ -1293,11 +1334,11 @@ tr:hover {
                         datasets: [{
                             label: 'Revenue',
                             data: revenues,
-                            backgroundColor: '#667eea'
+                            backgroundColor: '#000000'
                         }, {
                             label: 'Costs',
                             data: costs,
-                            backgroundColor: '#e53e3e'
+                            backgroundColor: '#c62828'
                         }]
                     },
                     options: {
@@ -1622,12 +1663,12 @@ tr:hover {
             unpaidClients.forEach(payment => {
                 if (payment.clients) {
                     const amount = parseFloat(payment.clients.amount);
-                    message += `• ${payment.clients.name}: ${amount.toLocaleString()}\n`;
+                    message += `• ${payment.clients.name}: $${amount.toLocaleString()}\n`;
                     total += amount;
                 }
             });
             
-            message += `\nTotal Outstanding: ${total.toLocaleString()}`;
+            message += `\nTotal Outstanding: $${total.toLocaleString()}`;
             alert(message);
         }
         
