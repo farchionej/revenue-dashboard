@@ -1,64 +1,4 @@
-async function loadCosts() {
-            updateSyncStatus('syncing');
-            try {
-                const { data, error } = await supabase
-                    .from('monthly_data')
-                    .select('*')
-                    .order('month', { ascending: false });
-                
-                if (error) throw error;
-                
-                displayCosts(data);
-                updateCostSummary(data);
-                updateSyncStatus('connected');
-                
-            } catch (error) {
-                console.error('Error loading costs:', error);
-                updateSyncStatus('error');
-            }
-        }
-        
-        function displayClients() {
-            const tbody = document.querySelector('#clientsTable tbody');
-            if (!tbody) return;
-            
-            tbody.innerHTML = '';
-            
-            // Filter clients based on currentClientFilter
-            let displayClients = [...clients];
-            if (currentClientFilter !== 'all') {
-                displayClients = displayClients.filter(client => client.status === currentClientFilter);
-            }
-            
-            displayClients.forEach(client => {
-                // Calculate lifetime value (simplified)
-                const monthsSinceStart = Math.max(1, Math.floor((new Date() - new Date(client.start_date)) / (30 * 24 * 60 * 60 * 1000)));
-                const lifetimeValue = (client.status === 'active' || client.status === 'hidden') ? (parseFloat(client.amount) * monthsSinceStart) : 0;
-                
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td><strong>${client.name}</strong></td>
-                    <td>${parseFloat(client.amount).toLocaleString()}</td>
-                    <td><span class="status-${client.status}">${client.status}</span></td>
-                    <td>${client.start_date}</td>
-                    <td>${lifetimeValue.toLocaleString()}</td>
-                    <td>
-                        <button onclick="toggleClientStatus(${client.id}, '${client.status}')" class="btn-secondary">Change Status</button>
-                        <button onclick="editClient(${client.id})" class="btn-secondary">Edit</button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-        
-        function filterClients(filter) {
-            currentClientFilter = filter;
-            
-            // Update button styles
-            const buttons = document.querySelectorAll('#clients .filter-btn');
-            buttons.forEach(btn => {
-                btn.classList.remove('active');
-            <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1812,7 +1752,27 @@ async function loadCosts() {
             });
         }
         
-        function updateCostSummary(data) {
+        async function loadCosts() {
+            updateSyncStatus('syncing');
+            try {
+                const { data, error } = await supabase
+                    .from('monthly_data')
+                    .select('*')
+                    .order('month', { ascending: false });
+                
+                if (error) throw error;
+                
+                displayCosts(data);
+                updateCostSummary(data);
+                updateSyncStatus('connected');
+                
+            } catch (error) {
+                console.error('Error loading costs:', error);
+                updateSyncStatus('error');
+            }
+        }
+        
+        function displayClients() {
             const currentMonth = document.getElementById('costMonth').value;
             const currentYear = currentMonth.split('-')[0];
             
