@@ -880,13 +880,13 @@
             
             <div class="charts-grid">
                 <div class="chart-container">
-                    <div class="chart-title">Revenue Trend</div>
+                    <div class="chart-title">Expected Revenue Trend</div>
                     <div class="chart-wrapper">
                         <canvas id="revenueChart"></canvas>
                     </div>
                 </div>
                 <div class="chart-container">
-                    <div class="chart-title">Revenue vs Goal</div>
+                    <div class="chart-title">Expected vs Goal</div>
                     <div class="chart-wrapper">
                         <canvas id="goalChart"></canvas>
                     </div>
@@ -910,7 +910,7 @@
                     <thead>
                         <tr>
                             <th>Month</th>
-                            <th>Revenue</th>
+                            <th>Expected Revenue</th>
                             <th>Op Income</th>
                             <th>Costs</th>
                             <th>Margin %</th>
@@ -925,11 +925,8 @@
                     </tbody>
                 </table>
             </div>
-            </tbody>
-                </table>
-            </div>
             
-            <!-- Cash Flow Analysis Section - ADD THIS -->
+            <!-- Cash Flow Analysis Section -->
             <div style="margin-top: 60px; padding-top: 40px; border-top: 2px solid #e5e5e7;">
                 <h3 style="font-size: 1.5em; font-weight: 600; margin-bottom: 30px; color: #000000;">
                     Cash Flow Analysis
@@ -959,11 +956,6 @@
                     </table>
                 </div>
             </div>
-            <!-- End of Cash Flow Section -->
-            
-        </div>  <!-- This closes the analytics tab -->
-        
-        <!-- Add Client Modal -->
         </div>
         
         <!-- Add Client Modal -->
@@ -1100,29 +1092,27 @@
             }
         }
         
-       async function loadAnalytics() {
-    updateSyncStatus('syncing');
-    try {
-        const { data: analyticsData, error } = await supabase
-            .from('monthly_data')
-            .select('*')
-            .order('month', { ascending: true });
-        
-        if (error) throw error;
-        
-        monthlyData = analyticsData || [];
-        displayAnalytics();
-        updateCharts();
-        // ADD THIS LINE HERE:
-        await updateCashFlowAnalysis();
-        
-        updateSyncStatus('connected');
-        
-    } catch (error) {
-        console.error('Error loading analytics:', error);
-        updateSyncStatus('error');
-    }
-}
+        async function loadAnalytics() {
+            updateSyncStatus('syncing');
+            try {
+                const { data: analyticsData, error } = await supabase
+                    .from('monthly_data')
+                    .select('*')
+                    .order('month', { ascending: true });
+                
+                if (error) throw error;
+                
+                monthlyData = analyticsData || [];
+                displayAnalytics();
+                updateCharts();
+                await updateCashFlowAnalysis();
+                updateSyncStatus('connected');
+                
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+                updateSyncStatus('error');
+            }
+        }
         
         async function loadCosts() {
             updateSyncStatus('syncing');
@@ -1332,10 +1322,6 @@
                 });
             }
             
-            // First, ensure all active clients have payment records for each month
-            // Commented out - use the "Sync Database" button instead to avoid confusion
-            // await ensurePaymentRecordsExist(activeClients, months);
-            
             // Load payment data for all YTD months
             const paymentData = {};
             
@@ -1403,7 +1389,6 @@
                 let rowCells = [];
                 
                 // Skip clients that are currently paused and we have 4+ months of data
-                // (Assuming if they're paused now and we have 4+ months, they've been paused long enough)
                 if (client.status === 'paused' && months.length >= 4) {
                     return; // Skip this client entirely from the visual
                 }
@@ -1469,13 +1454,6 @@
                     gridContainer.appendChild(cell);
                 });
             });
-        }
-        
-        async function ensurePaymentRecordsExist(clients, months) {
-            // This function creates missing payment records for active clients only
-            // Skip this in the payment history load to avoid duplicating the sync functionality
-            // This is now primarily handled by the Sync Database button
-            return;
         }
         
         function filterPaymentHistory() {
@@ -1806,141 +1784,29 @@
             const opIncomes = filteredData.map(d => parseFloat(d.op_income) || 0);
             const margins = filteredData.map(d => parseFloat(d.margin) || 0);
             const goals = filteredData.map(d => parseFloat(d.goal) || 0);
-            async function updateCashFlowAnalysis() {
-    try {
-        // Get all clients
-        const { data: allClients } = await supabase
-            .from('clients')
-            .select('*');
-        
-        // Get all payments for cash flow analysis
-        const { data: allPayments } = await supabase
-            .from('monthly_payments')
-            .select(`
-                *,
-                clients (
-                    id,
-                    name,
-                    amount,
-                    status,
-                    start_date
-                )
-            `);
-        
-        // Get monthly data for costs
-        const { data: monthlyDataRecords } = await supabase
-            .from('monthly_data')
-            .select('*')
-            .order('month', { ascending: false });
-        
-        // Group payments by month
-        const cashFlowByMonth = {};
-        
-        // Process each month
-        monthlyDataRecords.forEach(monthRecord => {
-            const month = monthRecord.month;
-            
-            // Calculate expected revenue for this month
-            let expectedRevenue = 0;
-            allClients.forEach(client => {
-                if (client.status === 'active') {
-                    const clientStart = new Date(client.start_date || '2024-01-01');
-                    const monthDate = new Date(month + '-01');
-                    if (clientStart <= monthDate) {
-                        expectedRevenue += parseFloat(client.amount);
-                    }
-                }
-            });
-            
-            // Calculate actually collected for this month
-            const monthPayments = allPayments.filter(p => p.month === month);
-            let collected = 0;
-            monthPayments.forEach(payment => {
-                if (payment.status === 'paid' && payment.clients) {
-                    collected += parseFloat(payment.clients.amount);
-                }
-            });
-            
-            const costs = parseFloat(monthRecord.costs) || 0;
-            const outstanding = expectedRevenue - collected;
-            const collectionRate = expectedRevenue > 0 ? (collected / expectedRevenue * 100) : 0;
-            const actualOpIncome = collected - costs;
-            const actualMargin = collected > 0 ? (actualOpIncome / collected * 100) : 0;
-            
-            cashFlowByMonth[month] = {
-                expected: expectedRevenue,
-                collected: collected,
-                outstanding: outstanding,
-                collectionRate: collectionRate,
-                costs: costs,
-                actualOpIncome: actualOpIncome,
-                actualMargin: actualMargin
-            };
-        });
-        
-        // Display in table
-        const tbody = document.getElementById('cashFlowTableBody');
-        if (tbody) {
-            // Sort months in descending order
-            const sortedMonths = Object.keys(cashFlowByMonth).sort((a, b) => b.localeCompare(a));
-            
-            tbody.innerHTML = sortedMonths.map(month => {
-                const data = cashFlowByMonth[month];
-                const [year, monthNum] = month.split('-');
-                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                const monthDisplay = `${monthNames[parseInt(monthNum) - 1]} ${year}`;
-                
-                // Color code collection rate
-                const rateClass = data.collectionRate >= 90 ? 'status-paid' : 
-                                 data.collectionRate >= 75 ? 'status-paused' : 'status-unpaid';
-                
-                return `
-                    <tr>
-                        <td><strong>${monthDisplay}</strong></td>
-                        <td>$${data.expected.toLocaleString()}</td>
-                        <td>$${data.collected.toLocaleString()}</td>
-                        <td>$${data.outstanding.toLocaleString()}</td>
-                        <td><span class="${rateClass}">${data.collectionRate.toFixed(1)}%</span></td>
-                        <td>$${data.actualOpIncome.toLocaleString()}</td>
-                        <td>${data.actualMargin.toFixed(1)}%</td>
-                    </tr>
-                `;
-            }).join('');
-        }
-    } catch (error) {
-        console.error('Error updating cash flow analysis:', error);
-        const tbody = document.getElementById('cashFlowTableBody');
-        if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="7" class="loading">Error loading cash flow data</td></tr>';
-        }
-    }
-}
             
             // Revenue Trend Chart
-if (charts.revenue) charts.revenue.destroy();
-const revenueCtx = document.getElementById('revenueChart');
-if (revenueCtx) {
-    charts.revenue = new Chart(revenueCtx.getContext('2d'), {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Expected Revenue',  // Changed from 'Revenue' to 'Expected Revenue'
-                data: revenues,
-                borderColor: '#000000',
-                backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                tension: 0.3
-            }, {
-                label: 'Expected Operating Income',  // Changed to 'Expected Operating Income'
-                data: opIncomes,
-                borderColor: '#2e7d32',
-                backgroundColor: 'rgba(46, 125, 50, 0.1)',
-                tension: 0.3
-            }]
-        },
-        // ... rest of options stay the same
-    });
-}
+            if (charts.revenue) charts.revenue.destroy();
+            const revenueCtx = document.getElementById('revenueChart');
+            if (revenueCtx) {
+                charts.revenue = new Chart(revenueCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Expected Revenue',
+                            data: revenues,
+                            borderColor: '#000000',
+                            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                            tension: 0.3
+                        }, {
+                            label: 'Expected Operating Income',
+                            data: opIncomes,
+                            borderColor: '#2e7d32',
+                            backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                            tension: 0.3
+                        }]
+                    },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
@@ -2045,7 +1911,7 @@ if (revenueCtx) {
                     data: {
                         labels: labels,
                         datasets: [{
-                            label: 'Revenue',
+                            label: 'Expected Revenue',
                             data: revenues,
                             backgroundColor: '#000000'
                         }, {
@@ -2073,6 +1939,116 @@ if (revenueCtx) {
                         }
                     }
                 });
+            }
+        }
+        
+        async function updateCashFlowAnalysis() {
+            try {
+                // Get all clients
+                const { data: allClients } = await supabase
+                    .from('clients')
+                    .select('*');
+                
+                // Get all payments for cash flow analysis
+                const { data: allPayments } = await supabase
+                    .from('monthly_payments')
+                    .select(`
+                        *,
+                        clients (
+                            id,
+                            name,
+                            amount,
+                            status,
+                            start_date
+                        )
+                    `);
+                
+                // Get monthly data for costs
+                const { data: monthlyDataRecords } = await supabase
+                    .from('monthly_data')
+                    .select('*')
+                    .order('month', { ascending: false });
+                
+                // Group payments by month
+                const cashFlowByMonth = {};
+                
+                // Process each month
+                monthlyDataRecords.forEach(monthRecord => {
+                    const month = monthRecord.month;
+                    
+                    // Calculate expected revenue for this month
+                    let expectedRevenue = 0;
+                    allClients.forEach(client => {
+                        if (client.status === 'active') {
+                            const clientStart = new Date(client.start_date || '2024-01-01');
+                            const monthDate = new Date(month + '-01');
+                            if (clientStart <= monthDate) {
+                                expectedRevenue += parseFloat(client.amount);
+                            }
+                        }
+                    });
+                    
+                    // Calculate actually collected for this month
+                    const monthPayments = allPayments.filter(p => p.month === month);
+                    let collected = 0;
+                    monthPayments.forEach(payment => {
+                        if (payment.status === 'paid' && payment.clients) {
+                            collected += parseFloat(payment.clients.amount);
+                        }
+                    });
+                    
+                    const costs = parseFloat(monthRecord.costs) || 0;
+                    const outstanding = expectedRevenue - collected;
+                    const collectionRate = expectedRevenue > 0 ? (collected / expectedRevenue * 100) : 0;
+                    const actualOpIncome = collected - costs;
+                    const actualMargin = collected > 0 ? (actualOpIncome / collected * 100) : 0;
+                    
+                    cashFlowByMonth[month] = {
+                        expected: expectedRevenue,
+                        collected: collected,
+                        outstanding: outstanding,
+                        collectionRate: collectionRate,
+                        costs: costs,
+                        actualOpIncome: actualOpIncome,
+                        actualMargin: actualMargin
+                    };
+                });
+                
+                // Display in table
+                const tbody = document.getElementById('cashFlowTableBody');
+                if (tbody) {
+                    // Sort months in descending order
+                    const sortedMonths = Object.keys(cashFlowByMonth).sort((a, b) => b.localeCompare(a));
+                    
+                    tbody.innerHTML = sortedMonths.map(month => {
+                        const data = cashFlowByMonth[month];
+                        const [year, monthNum] = month.split('-');
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        const monthDisplay = `${monthNames[parseInt(monthNum) - 1]} ${year}`;
+                        
+                        // Color code collection rate
+                        const rateClass = data.collectionRate >= 90 ? 'status-paid' : 
+                                         data.collectionRate >= 75 ? 'status-paused' : 'status-unpaid';
+                        
+                        return `
+                            <tr>
+                                <td><strong>${monthDisplay}</strong></td>
+                                <td>$${data.expected.toLocaleString()}</td>
+                                <td>$${data.collected.toLocaleString()}</td>
+                                <td>$${data.outstanding.toLocaleString()}</td>
+                                <td><span class="${rateClass}">${data.collectionRate.toFixed(1)}%</span></td>
+                                <td>$${data.actualOpIncome.toLocaleString()}</td>
+                                <td>${data.actualMargin.toFixed(1)}%</td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+            } catch (error) {
+                console.error('Error updating cash flow analysis:', error);
+                const tbody = document.getElementById('cashFlowTableBody');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="loading">Error loading cash flow data</td></tr>';
+                }
             }
         }
         
@@ -2156,71 +2132,71 @@ if (revenueCtx) {
             }
         }
         
-     async function recalculateMonthlyData(month) {
-    // Calculate EXPECTED revenue (all active clients)
-    let expectedRevenue = 0;
-    let collectedRevenue = 0;
-    
-    // Get all clients to calculate expected revenue
-    const { data: allClients } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('status', 'active');
-    
-    // Calculate expected revenue from all active clients
-    if (allClients) {
-        allClients.forEach(client => {
-            const clientStart = new Date(client.start_date || '2024-01-01');
-            const monthDate = new Date(month + '-01');
-            if (clientStart <= monthDate) {
-                expectedRevenue += parseFloat(client.amount);
+        async function recalculateMonthlyData(month) {
+            // Calculate EXPECTED revenue (all active clients)
+            let expectedRevenue = 0;
+            let collectedRevenue = 0;
+            
+            // Get all clients to calculate expected revenue
+            const { data: allClients } = await supabase
+                .from('clients')
+                .select('*')
+                .eq('status', 'active');
+            
+            // Calculate expected revenue from all active clients
+            if (allClients) {
+                allClients.forEach(client => {
+                    const clientStart = new Date(client.start_date || '2024-01-01');
+                    const monthDate = new Date(month + '-01');
+                    if (clientStart <= monthDate) {
+                        expectedRevenue += parseFloat(client.amount);
+                    }
+                });
             }
-        });
-    }
-    
-    // Calculate collected revenue (only paid payments)
-    monthlyPayments.forEach(payment => {
-        if (payment.clients && payment.clients.status !== 'paused' && payment.status === 'paid') {
-            collectedRevenue += parseFloat(payment.clients.amount);
-        }
-    });
-    
-    // Get existing monthly data
-    const { data: existing } = await supabase
-        .from('monthly_data')
-        .select('*')
-        .eq('month', month)
-        .single();
-    
-    const costs = existing ? parseFloat(existing.costs) || 0 : 0;
-    const opIncome = expectedRevenue - costs;  // Use expected revenue for op income
-    const margin = expectedRevenue > 0 ? (opIncome / expectedRevenue * 100) : 0;
-    const goal = existing ? parseFloat(existing.goal) || 0 : 18000;
-    
-    if (existing) {
-        await supabase
-            .from('monthly_data')
-            .update({
-                revenue: expectedRevenue,  // Store expected revenue instead of collected
-                op_income: opIncome,
-                margin: margin
-            })
-            .eq('month', month);
-    } else {
-        await supabase
-            .from('monthly_data')
-            .insert({
-                month: month,
-                revenue: expectedRevenue,  // Store expected revenue instead of collected
-                op_income: opIncome,
-                costs: costs,
-                margin: margin,
-                goal: goal
+            
+            // Calculate collected revenue (only paid payments)
+            monthlyPayments.forEach(payment => {
+                if (payment.clients && payment.clients.status !== 'paused' && payment.status === 'paid') {
+                    collectedRevenue += parseFloat(payment.clients.amount);
+                }
             });
-    }
-    
-    await loadAnalytics();
-}
+            
+            // Get existing monthly data
+            const { data: existing } = await supabase
+                .from('monthly_data')
+                .select('*')
+                .eq('month', month)
+                .single();
+            
+            const costs = existing ? parseFloat(existing.costs) || 0 : 0;
+            const opIncome = expectedRevenue - costs;  // Use expected revenue for op income
+            const margin = expectedRevenue > 0 ? (opIncome / expectedRevenue * 100) : 0;
+            const goal = existing ? parseFloat(existing.goal) || 0 : 18000;
+            
+            if (existing) {
+                await supabase
+                    .from('monthly_data')
+                    .update({
+                        revenue: expectedRevenue,  // Store expected revenue
+                        op_income: opIncome,
+                        margin: margin
+                    })
+                    .eq('month', month);
+            } else {
+                await supabase
+                    .from('monthly_data')
+                    .insert({
+                        month: month,
+                        revenue: expectedRevenue,  // Store expected revenue
+                        op_income: opIncome,
+                        costs: costs,
+                        margin: margin,
+                        goal: goal
+                    });
+            }
+            
+            await loadAnalytics();
+        }
         
         async function quickUpdateCosts() {
             const month = document.getElementById('costMonth').value;
