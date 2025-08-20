@@ -1299,7 +1299,7 @@
                 
                 row.innerHTML = `
                     <td><strong>${client.name}</strong></td>
-                    <td>$${parseFloat(client.amount).toLocaleString()}</td>
+                    <td>${parseFloat(client.amount).toLocaleString()}</td>
                     <td>
                         <span class="status-${status}" 
                               onclick="togglePaymentStatus(${client.id}, '${status}')"
